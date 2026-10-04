@@ -74,9 +74,24 @@ test('axe scan on data-management modal surfaces', async ({ page }) => {
   await expectNoAxeViolations(page)
 })
 
-test('axe scan on custom-Food form and in-use delete confirmation', async ({
-  page,
-}) => {
+test('axe scan on custom-Food form', async ({ page }) => {
+  await launchWithState(page, emptyState())
+  await navigateTo(page, 'Food library')
+
+  await page.getByRole('button', { name: 'Add food', exact: true }).click()
+  await expectNoAxeViolations(page)
+})
+
+test('axe scan on custom-Food validation errors', async ({ page }) => {
+  await launchWithState(page, emptyState())
+  await navigateTo(page, 'Food library')
+
+  await page.getByRole('button', { name: 'Add food', exact: true }).click()
+  await page.getByRole('button', { name: 'Add to library' }).click()
+  await expectNoAxeViolations(page)
+})
+
+test('axe scan on in-use custom-Food delete confirmation', async ({ page }) => {
   const custom = createCustomFood(
     {
       brand: 'Accessible',
@@ -103,15 +118,6 @@ test('axe scan on custom-Food form and in-use delete confirmation', async ({
   })
   await launchWithState(page, state)
   await navigateTo(page, 'Food library')
-
-  await page.getByRole('button', { name: 'Add food', exact: true }).click()
-  await expectNoAxeViolations(page)
-  await page.getByRole('button', { name: 'Add to library' }).click()
-  await expectNoAxeViolations(page)
-  await page
-    .getByRole('dialog', { name: 'Add a custom food' })
-    .getByRole('button', { name: 'Cancel' })
-    .click()
 
   await page.getByRole('textbox', { name: 'Search foods' }).fill('Accessible Meal')
   await page.getByRole('button', { name: 'Delete Accessible Meal' }).click()
