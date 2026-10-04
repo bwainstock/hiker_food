@@ -13,20 +13,23 @@ export const EMPTY_NUTRITION: Nutrition = {
   protein: 0,
 }
 
-const value = (input: number | null | undefined) => input ?? 0
+const value = (input: number | null | undefined) =>
+  typeof input === 'number' && Number.isFinite(input) ? input : 0
 
 export function nutritionForFood(food: Food, quantity = 1): Nutrition {
+  const safeQuantity =
+    Number.isFinite(quantity) && quantity > 0 ? quantity : 0
   return {
-    calories: value(food.calories) * quantity,
-    weightOz: value(food.servingOz) * quantity,
-    weightGrams: value(food.servingGrams) * quantity,
-    fat: value(food.fat) * quantity,
-    sodium: value(food.sodium) * quantity,
-    potassium: value(food.potassium) * quantity,
-    carbs: value(food.carbs) * quantity,
-    fiber: value(food.fiber) * quantity,
-    sugar: value(food.sugar) * quantity,
-    protein: value(food.protein) * quantity,
+    calories: value(food.calories) * safeQuantity,
+    weightOz: value(food.servingOz) * safeQuantity,
+    weightGrams: value(food.servingGrams) * safeQuantity,
+    fat: value(food.fat) * safeQuantity,
+    sodium: value(food.sodium) * safeQuantity,
+    potassium: value(food.potassium) * safeQuantity,
+    carbs: value(food.carbs) * safeQuantity,
+    fiber: value(food.fiber) * safeQuantity,
+    sugar: value(food.sugar) * safeQuantity,
+    protein: value(food.protein) * safeQuantity,
   }
 }
 
@@ -113,6 +116,7 @@ export function sodiumLabel(valuePerCalorie: number) {
 }
 
 export function round(value: number, digits = 0) {
+  if (!Number.isFinite(value)) return 0
   const factor = 10 ** digits
   return Math.round(value * factor) / factor
 }
@@ -136,16 +140,20 @@ export function calculateFoodMetrics(food: Partial<Food>) {
   const protein = value(food.protein)
   const macroCalories = fat * 9 + carbs * 4 + protein * 4
 
+  const safeRatio = (numerator: number, denominator: number) => {
+    if (denominator <= 0) return null
+    const result = numerator / denominator
+    return Number.isFinite(result) ? result : null
+  }
+
   return {
     servingOz: ounces,
-    caloriesPerOz: ounces > 0 ? calories / ounces : null,
-    caloriesPerGram: grams > 0 ? calories / grams : null,
-    carbProteinRatio: protein > 0 ? carbs / protein : null,
-    fatCalorieFraction: macroCalories > 0 ? (fat * 9) / macroCalories : null,
-    sugarCalorieFraction:
-      macroCalories > 0 ? (sugar * 4) / macroCalories : null,
-    sodiumPerCalorie:
-      calories > 0 ? value(food.sodium) / calories : null,
+    caloriesPerOz: safeRatio(calories, ounces),
+    caloriesPerGram: safeRatio(calories, grams),
+    carbProteinRatio: safeRatio(carbs, protein),
+    fatCalorieFraction: safeRatio(fat * 9, macroCalories),
+    sugarCalorieFraction: safeRatio(sugar * 4, macroCalories),
+    sodiumPerCalorie: safeRatio(value(food.sodium), calories),
   }
 }
 
@@ -158,6 +166,7 @@ export function interpolateSodiumNeed(temperature: number) {
     [35, 7500],
     [40, 9500],
   ]
+  if (!Number.isFinite(temperature)) return points[0][1]
   if (temperature <= points[0][0]) return points[0][1]
   if (temperature >= points.at(-1)![0]) return points.at(-1)![1]
 

@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   CalendarPlus,
   ChevronDown,
   Copy,
@@ -9,7 +10,7 @@ import {
   Utensils,
   Wheat,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { FoodPicker } from '../components/FoodPicker'
 import { Badge, EmptyState, ProgressBar, StatCard } from '../components/Ui'
 import {
@@ -23,12 +24,16 @@ import {
   round,
   sodiumLabel,
 } from '../lib/nutrition'
+import { isTenthStepQuantity } from '../lib/schemas'
 import { createDay } from '../lib/planner'
+import { findUnresolvedPlanItems } from '../lib/state'
 import type {
   DayPlan,
   Food,
   MealName,
+  PlanItem,
   PlannerState,
+  PlannerStateUpdater,
 } from '../types'
 import { MEALS } from '../types'
 
@@ -52,7 +57,7 @@ export function PlannerPage({
   foodsById,
 }: {
   state: PlannerState
-  setState: (updater: (state: PlannerState) => PlannerState) => void
+  setState: PlannerStateUpdater
   foods: Food[]
   foodsById: Map<string, Food>
 }) {
@@ -63,6 +68,10 @@ export function PlannerPage({
 
   const activeDay =
     state.days.find((day) => day.id === activeDayId) ?? state.days[0]
+  const unresolvedItems = useMemo(
+    () => findUnresolvedPlanItems(state, foodsById),
+    [state, foodsById],
+  )
 
   const dayNutrition = useMemo(() => {
     if (!activeDay) return addNutrition()
@@ -150,7 +159,9 @@ export function PlannerPage({
       <section className="trip-strip">
         <div>
           <span>Trip overview</span>
-          <strong>{state.days.length} trail days</strong>
+          <strong>
+            {state.days.length} trail day{state.days.length === 1 ? '' : 's'}
+          </strong>
         </div>
         <div>
           <span>Total energy</span>
@@ -169,20 +180,34 @@ export function PlannerPage({
         </div>
       </section>
 
+      {unresolvedItems.length > 0 && (
+        <div className="incomplete-warning" role="status">
+          <AlertTriangle size={18} />
+          <p>
+            <strong>Nutrition totals are incomplete.</strong>{' '}
+            {unresolvedItems.length} Plan item
+            {unresolvedItems.length === 1 ? '' : 's'} reference unavailable
+            Food and are excluded from nutrition totals.
+          </p>
+        </div>
+      )}
+
       <section className="day-toolbar">
-        <div className="day-tabs" role="tablist" aria-label="Trail days">
-          {state.days.map((day) => (
-            <button
-              className={day.id === activeDay.id ? 'active' : ''}
-              type="button"
-              role="tab"
-              aria-selected={day.id === activeDay.id}
-              key={day.id}
-              onClick={() => setActiveDayId(day.id)}
-            >
-              {day.name}
-            </button>
-          ))}
+        <div className="day-tabs">
+          <div className="day-tabs-list" role="tablist" aria-label="Trail days">
+            {state.days.map((day) => (
+              <button
+                className={day.id === activeDay.id ? 'active' : ''}
+                type="button"
+                role="tab"
+                aria-selected={day.id === activeDay.id}
+                key={day.id}
+                onClick={() => setActiveDayId(day.id)}
+              >
+                {day.name}
+              </button>
+            ))}
+          </div>
           <button className="day-add" type="button" onClick={addDay}>
             <Plus size={16} /> Day
           </button>
@@ -251,7 +276,7 @@ export function PlannerPage({
             const nutrition = nutritionForItems(mealItems, foodsById)
             const isExpanded = expandedMeals.has(meal)
             return (
-              <article className="meal-card" key={meal}>
+              <article className="meal-card" key={meal} aria-label={meal}>
                 <button
                   className="meal-header"
                   type="button"
@@ -292,64 +317,50 @@ export function PlannerPage({
                     <div className="meal-items">
                       {mealItems.map((item) => {
                         const food = foodsById.get(item.foodId)
-                        if (!food) return null
                         return (
-                          <div className="meal-item" key={item.id}>
-                            <div className="food-avatar">
-                              {(food.category ?? 'F').slice(0, 1)}
-                            </div>
-                            <div className="meal-item-name">
-                              <strong>{food.name}</strong>
-                              <span>
-                                {round((food.calories ?? 0) * item.quantity)} kcal ·{' '}
-                                {round((food.servingOz ?? 0) * item.quantity, 1)} oz
-                              </span>
-                            </div>
-                            <label className="quantity-control">
-                              <span>Qty</span>
-                              <input
-                                type="number"
-                                min="0.1"
-                                step="0.5"
-                                value={item.quantity}
-                                onChange={(event) => {
-                                  const quantity = Math.max(
-                                    0.1,
-                                    Number(event.target.value) || 0.1,
-                                  )
-                                  updateDay((day) => ({
-                                    ...day,
-                                    meals: {
-                                      ...day.meals,
-                                      [meal]: day.meals[meal].map((candidate) =>
-                                        candidate.id === item.id
-                                          ? { ...candidate, quantity }
-                                          : candidate,
-                                      ),
-                                    },
-                                  }))
-                                }}
-                              />
-                            </label>
-                            <button
-                              className="icon-button remove-item"
-                              type="button"
-                              aria-label={`Remove ${food.name}`}
-                              onClick={() =>
-                                updateDay((day) => ({
-                                  ...day,
-                                  meals: {
-                                    ...day.meals,
-                                    [meal]: day.meals[meal].filter(
-                                      (candidate) => candidate.id !== item.id,
-                                    ),
-                                  },
-                                }))
-                              }
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </div>
+                          <MealPlanItem
+                            key={`${item.id}:${item.quantity}`}
+                            item={item}
+                            food={food}
+                            foods={foods}
+                            onQuantity={(quantity) =>
+                              updateDay((day) => ({
+                                ...day,
+                                meals: {
+                                  ...day.meals,
+                                  [meal]: day.meals[meal].map((candidate) =>
+                                    candidate.id === item.id
+                                      ? { ...candidate, quantity }
+                                      : candidate,
+                                  ),
+                                },
+                              }))
+                            }
+                            onReplace={(foodId) =>
+                              updateDay((day) => ({
+                                ...day,
+                                meals: {
+                                  ...day.meals,
+                                  [meal]: day.meals[meal].map((candidate) =>
+                                    candidate.id === item.id
+                                      ? { ...candidate, foodId }
+                                      : candidate,
+                                  ),
+                                },
+                              }))
+                            }
+                            onRemove={() =>
+                              updateDay((day) => ({
+                                ...day,
+                                meals: {
+                                  ...day.meals,
+                                  [meal]: day.meals[meal].filter(
+                                    (candidate) => candidate.id !== item.id,
+                                  ),
+                                },
+                              }))
+                            }
+                          />
                         )
                       })}
                     </div>
@@ -380,7 +391,7 @@ export function PlannerPage({
           })}
         </section>
 
-        <aside className="analysis-card">
+        <aside className="analysis-card" aria-label="Day nutrition analysis">
           <div className="section-heading compact">
             <div>
               <span className="eyebrow">Day analysis</span>
@@ -457,5 +468,148 @@ export function PlannerPage({
         </aside>
       </div>
     </div>
+  )
+}
+
+function MealPlanItem({
+  item,
+  food,
+  foods,
+  onQuantity,
+  onReplace,
+  onRemove,
+}: {
+  item: PlanItem
+  food: Food | undefined
+  foods: Food[]
+  onQuantity: (quantity: number) => void
+  onReplace: (foodId: string) => void
+  onRemove: () => void
+}) {
+  const [replacing, setReplacing] = useState(false)
+  const label = food?.name ?? `Unavailable food ${item.foodId}`
+
+  return (
+    <>
+      <div className={`meal-item ${food ? '' : 'unresolved-item'}`}>
+        <div className="food-avatar">
+          {food ? (food.category ?? 'F').slice(0, 1) : <AlertTriangle size={14} />}
+        </div>
+        <div className="meal-item-name">
+          <strong>{food?.name ?? 'Unavailable food'}</strong>
+          <span>
+            {food
+              ? `${round((food.calories ?? 0) * item.quantity)} kcal · ${round(
+                  (food.servingOz ?? 0) * item.quantity,
+                  1,
+                )} oz`
+              : `Food ID: ${item.foodId}`}
+          </span>
+        </div>
+        <QuantityInput
+          label={label}
+          value={item.quantity}
+          onCommit={onQuantity}
+        />
+        <div className="meal-item-actions">
+          {!food && (
+            <button
+              className="button button-quiet item-action"
+              type="button"
+              onClick={() => setReplacing((current) => !current)}
+              aria-expanded={replacing}
+            >
+              Replace
+            </button>
+          )}
+          <button
+            className="icon-button remove-item"
+            type="button"
+            aria-label={`Remove ${label}`}
+            onClick={onRemove}
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
+      </div>
+      {!food && replacing && (
+        <div className="replacement-picker">
+          <FoodPicker
+            foods={foods}
+            placeholder={`Choose replacement for ${item.foodId}…`}
+            onSelect={(replacement) => {
+              onReplace(replacement.id)
+              setReplacing(false)
+            }}
+          />
+        </div>
+      )}
+    </>
+  )
+}
+
+function QuantityInput({
+  label,
+  value,
+  onCommit,
+}: {
+  label: string
+  value: number
+  onCommit: (quantity: number) => void
+}) {
+  const [draft, setDraft] = useState(String(value))
+  const [error, setError] = useState('')
+  const errorId = useId()
+
+  const parseQuantity = (next: string) => {
+    const quantity = next.trim() === '' ? Number.NaN : Number(next)
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setError('Enter a quantity greater than 0.')
+      return null
+    }
+    if (!isTenthStepQuantity(quantity)) {
+      setError('Enter a quantity in increments of 0.1.')
+      return null
+    }
+    setError('')
+    return quantity
+  }
+
+  const commit = () => {
+    const quantity = parseQuantity(draft)
+    if (quantity !== null) onCommit(quantity)
+  }
+
+  return (
+    <label className="quantity-control">
+      <span>Qty</span>
+      <input
+        type="number"
+        min="0.1"
+        step="0.1"
+        value={draft}
+        aria-label={`Quantity for ${label}`}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
+        onChange={(event) => {
+          const next = event.target.value
+          setDraft(next)
+          parseQuantity(next)
+        }}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            commit()
+            event.currentTarget.blur()
+          }
+        }}
+      />
+      {error && (
+        <span className="quantity-error" id={errorId} role="alert">
+          {error}
+        </span>
+      )}
+    </label>
   )
 }

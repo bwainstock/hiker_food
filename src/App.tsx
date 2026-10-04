@@ -1,9 +1,10 @@
-import { Download, RotateCcw } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import './App.css'
+import { DataManagement } from './components/DataManagement'
 import { Layout } from './components/Layout'
+import { RecoveryScreen } from './components/RecoveryScreen'
 import { BUILT_IN_FOODS } from './data'
-import { useLocalStorage } from './hooks/useLocalStorage'
+import { usePlannerState } from './hooks/usePlannerState'
 import { createStarterState } from './lib/planner'
 import { ElectrolytesPage } from './pages/ElectrolytesPage'
 import { FoodLibraryPage } from './pages/FoodLibraryPage'
@@ -12,6 +13,8 @@ import { PlannerPage } from './pages/PlannerPage'
 import { ShoppingPage } from './pages/ShoppingPage'
 import { SodiumCalculatorPage } from './pages/SodiumCalculatorPage'
 import type { Route } from './types'
+
+const NO_CUSTOM_FOODS = [] as const
 
 const PAGE_META: Record<Route, { title: string; description: string }> = {
   planner: {
@@ -42,41 +45,39 @@ const PAGE_META: Record<Route, { title: string; description: string }> = {
 
 function App() {
   const [route, setRoute] = useState<Route>('planner')
-  const [state, setState] = useLocalStorage('trail-rations-plan-v1', () =>
-    createStarterState(BUILT_IN_FOODS),
-  )
+  const createStarter = () => createStarterState(BUILT_IN_FOODS)
+  const store = usePlannerState(createStarter)
+  const { snapshot } = store
+  const customFoods =
+    snapshot.status === 'ready'
+      ? snapshot.state.customFoods
+      : NO_CUSTOM_FOODS
   const foods = useMemo(
-    () => [...state.customFoods, ...BUILT_IN_FOODS],
-    [state.customFoods],
+    () => [...BUILT_IN_FOODS, ...customFoods],
+    [customFoods],
   )
   const foodsById = useMemo(
     () => new Map(foods.map((food) => [food.id, food])),
     [foods],
   )
+
+  if (snapshot.status === 'recovery') {
+    return (
+      <RecoveryScreen
+        raw={snapshot.raw}
+        summary={snapshot.summary}
+        errors={snapshot.errors}
+        storageError={snapshot.storageError}
+        builtInFoods={BUILT_IN_FOODS}
+        createStarterState={createStarter}
+        onReset={store.recoverWithReset}
+      />
+    )
+  }
+
+  const state = snapshot.state
+  const setState = store.setState
   const meta = PAGE_META[route]
-
-  const exportPlan = () => {
-    const blob = new Blob([JSON.stringify(state, null, 2)], {
-      type: 'application/json',
-    })
-    const url = URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = 'trail-rations-plan.json'
-    anchor.click()
-    URL.revokeObjectURL(url)
-  }
-
-  const resetPlan = () => {
-    if (
-      window.confirm(
-        'Reset the planner to the workbook sample day? Your current plan and custom foods will be replaced.',
-      )
-    ) {
-      setState(createStarterState(BUILT_IN_FOODS))
-      setRoute('planner')
-    }
-  }
 
   return (
     <Layout
@@ -86,25 +87,24 @@ function App() {
       pageDescription={meta.description}
       headerActions={
         route === 'planner' ? (
-          <>
-            <button
-              className="button button-quiet desktop-action"
-              type="button"
-              onClick={resetPlan}
-            >
-              <RotateCcw size={16} /> Reset
-            </button>
-            <button
-              className="button button-secondary"
-              type="button"
-              onClick={exportPlan}
-            >
-              <Download size={16} /> Export
-            </button>
-          </>
+          <DataManagement
+            state={state}
+            previous={snapshot.previous}
+            builtInFoods={BUILT_IN_FOODS}
+            createStarterState={createStarter}
+            replaceState={store.replaceState}
+            restorePrevious={store.restorePrevious}
+            deletePrevious={store.deletePrevious}
+            onStateReplaced={() => setRoute('planner')}
+          />
         ) : undefined
       }
     >
+      {snapshot.storageError && (
+        <div className="data-warning" role="alert">
+          Browser storage could not be updated: {snapshot.storageError}
+        </div>
+      )}
       {route === 'planner' && (
         <PlannerPage
           state={state}
@@ -114,10 +114,16 @@ function App() {
         />
       )}
       {route === 'shopping' && (
-        <ShoppingPage state={state} foodsById={foodsById} />
+        <ShoppingPage
+          state={state}
+          setState={setState}
+          foods={foods}
+          foodsById={foodsById}
+        />
       )}
       {route === 'foods' && (
         <FoodLibraryPage
+          state={state}
           foods={foods}
           setState={setState}
         />

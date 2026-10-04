@@ -1,0 +1,131 @@
+import { Buffer } from 'node:buffer'
+import { createCustomFood } from '../../src/lib/customFood'
+import { expect, test } from './fixtures'
+import {
+  emptyState,
+  expectNoAxeViolations,
+  launchWithRawState,
+  launchWithState,
+  navigateTo,
+  selectImportFile,
+} from './helpers'
+
+test('axe scan on every screen', async ({ page }) => {
+  await launchWithState(page, emptyState())
+  await expectNoAxeViolations(page)
+
+  for (const screen of [
+    'Shopping list',
+    'Food library',
+    'Electrolytes',
+    'Na/K calculator',
+    'Trail guide',
+  ]) {
+    await navigateTo(page, screen)
+    await expectNoAxeViolations(page)
+  }
+})
+
+test('axe scan on data-management modal surfaces', async ({ page }) => {
+  await launchWithState(page, emptyState())
+
+  await page.getByRole('button', { name: 'Reset' }).click()
+  await expectNoAxeViolations(page)
+  await page.getByRole('button', { name: 'Cancel' }).click()
+
+  await page.getByRole('button', { name: 'Previous' }).click()
+  await expectNoAxeViolations(page)
+  await page
+    .getByRole('dialog', { name: 'Previous valid state' })
+    .getByRole('button', { name: 'Close' })
+    .filter({ hasText: /^Close$/ })
+    .click()
+
+  const backup = JSON.stringify({
+    schemaVersion: 1,
+    state: emptyState(),
+  })
+  await selectImportFile(page, {
+    name: 'valid.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(backup),
+  })
+  await expectNoAxeViolations(page)
+  await page
+    .getByRole('dialog', { name: 'Import this backup?' })
+    .getByRole('button', { name: 'Cancel' })
+    .click()
+
+  await selectImportFile(page, {
+    name: 'invalid.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('{'),
+  })
+  await expectNoAxeViolations(page)
+  await page
+    .getByRole('dialog', { name: 'Backup could not be imported' })
+    .getByRole('button', { name: 'Keep current data' })
+    .click()
+
+  await page.getByRole('button', { name: 'Reset' }).click()
+  await page.getByRole('button', { name: 'Reset Plan' }).click()
+  await page.getByRole('button', { name: 'Previous' }).click()
+  await page.getByRole('button', { name: 'Delete' }).click()
+  await expectNoAxeViolations(page)
+})
+
+test('axe scan on custom-Food form and in-use delete confirmation', async ({
+  page,
+}) => {
+  const custom = createCustomFood(
+    {
+      brand: 'Accessible',
+      flavor: 'Meal',
+      category: 'Entrée',
+      prep: 'hot',
+      servingGrams: 100,
+      calories: 400,
+      fat: 12,
+      sodium: 500,
+      potassium: 300,
+      carbs: 60,
+      fiber: 6,
+      sugar: 4,
+      protein: 16,
+    },
+    'custom-accessible',
+  )
+  const state = emptyState(undefined, [custom])
+  state.days[0].meals.Dinner.push({
+    id: 'accessible-item',
+    foodId: custom.id,
+    quantity: 1,
+  })
+  await launchWithState(page, state)
+  await navigateTo(page, 'Food library')
+
+  await page.getByRole('button', { name: 'Add food', exact: true }).click()
+  await expectNoAxeViolations(page)
+  await page.getByRole('button', { name: 'Add to library' }).click()
+  await expectNoAxeViolations(page)
+  await page
+    .getByRole('dialog', { name: 'Add a custom food' })
+    .getByRole('button', { name: 'Cancel' })
+    .click()
+
+  await page.getByRole('textbox', { name: 'Search foods' }).fill('Accessible Meal')
+  await page.getByRole('button', { name: 'Delete Accessible Meal' }).click()
+  await expectNoAxeViolations(page)
+})
+
+test('axe scan on malformed-state recovery and reset confirmation', async ({
+  page,
+}) => {
+  await launchWithRawState(page, '{"days":')
+  await expect(
+    page.getByRole('heading', { name: 'Your saved Plan cannot be loaded' }),
+  ).toBeVisible()
+  await expectNoAxeViolations(page)
+  await page.getByRole('button', { name: 'Reset saved Plan' }).click()
+  await expectNoAxeViolations(page)
+})

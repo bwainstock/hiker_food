@@ -9,44 +9,60 @@ import {
 import { useMemo, useState } from 'react'
 import { Badge, Modal } from '../components/Ui'
 import { FOOD_CATEGORIES } from '../data'
+import { filterAndSortFoods } from '../lib/catalog'
 import {
-  calculateFoodMetrics,
-  densityLabel,
-  round,
-} from '../lib/nutrition'
-import type { Food, PlannerState } from '../types'
-
-type SortKey = 'density' | 'calories' | 'protein' | 'name'
+  createCustomFood,
+  customFoodInputSchema,
+} from '../lib/customFood'
+import { densityLabel, round } from '../lib/nutrition'
+import {
+  countFoodReferences,
+  removeFoodReferences,
+} from '../lib/state'
+import type {
+  Food,
+  PlannerState,
+  PlannerStateUpdater,
+} from '../types'
+import type { FoodSortKey } from '../lib/catalog'
 
 export function FoodLibraryPage({
+  state,
   foods,
   setState,
 }: {
+  state: PlannerState
   foods: Food[]
-  setState: (updater: (state: PlannerState) => PlannerState) => void
+  setState: PlannerStateUpdater
 }) {
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('All')
-  const [sort, setSort] = useState<SortKey>('density')
+  const [sort, setSort] = useState<FoodSortKey>('density')
   const [showForm, setShowForm] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<Food | null>(null)
 
-  const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    return foods
-      .filter(
-        (food) =>
-          (category === 'All' || food.category === category) &&
-          (!normalized ||
-            `${food.name} ${food.category ?? ''} ${food.prep ?? ''}`
-              .toLowerCase()
-              .includes(normalized)),
-      )
-      .sort((a, b) => {
-        if (sort === 'name') return a.name.localeCompare(b.name)
-        return (b[sort === 'density' ? 'caloriesPerOz' : sort] ?? 0) -
-          (a[sort === 'density' ? 'caloriesPerOz' : sort] ?? 0)
-      })
-  }, [foods, query, category, sort])
+  const filtered = useMemo(
+    () => filterAndSortFoods(foods, { query, category, sort }),
+    [foods, query, category, sort],
+  )
+
+  const deleteCustomFood = (food: Food, removeReferences: boolean) => {
+    setState((current) => {
+      const withoutReferences = removeReferences
+        ? removeFoodReferences(current, food.id)
+        : current
+      return {
+        ...withoutReferences,
+        customFoods: withoutReferences.customFoods.filter(
+          (candidate) => candidate.id !== food.id,
+        ),
+      }
+    })
+  }
+
+  const pendingReferenceCount = pendingDelete
+    ? countFoodReferences(state, pendingDelete.id)
+    : 0
 
   return (
     <div className="library-page">
@@ -57,11 +73,16 @@ export function FoodLibraryPage({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search brand, item, category…"
+            aria-label="Search foods"
           />
         </label>
         <label className="select-field">
           <SlidersHorizontal size={16} />
-          <select value={category} onChange={(event) => setCategory(event.target.value)}>
+          <select
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            aria-label="Filter foods by category"
+          >
             <option>All</option>
             {FOOD_CATEGORIES.map((option) => (
               <option key={option}>{option}</option>
@@ -72,7 +93,10 @@ export function FoodLibraryPage({
           <ArrowDownUp size={16} />
           <select
             value={sort}
-            onChange={(event) => setSort(event.target.value as SortKey)}
+            onChange={(event) =>
+              setSort(event.target.value as FoodSortKey)
+            }
+            aria-label="Sort foods"
           >
             <option value="density">Highest calorie density</option>
             <option value="calories">Most calories / serving</option>
@@ -109,7 +133,9 @@ export function FoodLibraryPage({
               <th>Carbs</th>
               <th>Protein</th>
               <th>Sodium</th>
-              <th aria-label="Actions" />
+              <th>
+                <span className="visually-hidden">Actions</span>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -155,23 +181,11 @@ export function FoodLibraryPage({
                         className="icon-button danger"
                         type="button"
                         aria-label={`Delete ${food.name}`}
-                        onClick={() =>
-                          setState((current) => ({
-                            ...current,
-                            customFoods: current.customFoods.filter(
-                              (candidate) => candidate.id !== food.id,
-                            ),
-                            days: current.days.map((day) => ({
-                              ...day,
-                              meals: Object.fromEntries(
-                                Object.entries(day.meals).map(([meal, items]) => [
-                                  meal,
-                                  items.filter((item) => item.foodId !== food.id),
-                                ]),
-                              ) as typeof day.meals,
-                            })),
-                          }))
-                        }
+                        onClick={() => {
+                          const references = countFoodReferences(state, food.id)
+                          if (references === 0) deleteCustomFood(food, false)
+                          else setPendingDelete(food)
+                        }}
                       >
                         <Trash2 size={15} />
                       </button>
@@ -201,6 +215,44 @@ export function FoodLibraryPage({
           }}
         />
       )}
+      {pendingDelete && (
+        <Modal
+          title={`Delete ${pendingDelete.name}?`}
+          onClose={() => setPendingDelete(null)}
+        >
+          <div className="modal-content">
+            <p>
+              This custom Food is used by{' '}
+              <strong>
+                {pendingReferenceCount} Plan item
+                {pendingReferenceCount === 1 ? '' : 's'}
+              </strong>
+              . Deleting it also removes every one of those references.
+            </p>
+          </div>
+          <div className="modal-actions">
+            <button
+              className="button button-quiet"
+              type="button"
+              onClick={() => setPendingDelete(null)}
+              autoFocus
+            >
+              Cancel
+            </button>
+            <button
+              className="button button-primary danger-button"
+              type="button"
+              onClick={() => {
+                deleteCustomFood(pendingDelete, true)
+                setPendingDelete(null)
+              }}
+            >
+              Delete Food and {pendingReferenceCount} reference
+              {pendingReferenceCount === 1 ? '' : 's'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -212,71 +264,89 @@ function FoodForm({
   onClose: () => void
   onSave: (food: Food) => void
 }) {
+  type FormKey =
+    | 'brand'
+    | 'flavor'
+    | 'category'
+    | 'prep'
+    | 'servingGrams'
+    | 'calories'
+    | 'fat'
+    | 'sodium'
+    | 'potassium'
+    | 'carbs'
+    | 'fiber'
+    | 'sugar'
+    | 'protein'
+
   const [form, setForm] = useState({
     brand: '',
     flavor: '',
     category: 'Entrée',
     prep: 'N/A',
-    servingGrams: 28,
-    calories: 150,
-    fat: 5,
-    sodium: 0,
-    potassium: 0,
-    carbs: 20,
-    fiber: 0,
-    sugar: 0,
-    protein: 5,
+    servingGrams: '28',
+    calories: '150',
+    fat: '5',
+    sodium: '0',
+    potassium: '0',
+    carbs: '20',
+    fiber: '0',
+    sugar: '0',
+    protein: '5',
   })
+  const [errors, setErrors] = useState<Partial<Record<FormKey, string>>>({})
 
-  const update = (key: keyof typeof form, value: string) => {
-    setForm((current) => ({
-      ...current,
-      [key]:
-        key === 'brand' ||
-        key === 'flavor' ||
-        key === 'category' ||
-        key === 'prep'
-          ? value
-          : Number(value),
-    }))
+  const update = (key: FormKey, value: string) => {
+    setForm((current) => ({ ...current, [key]: value }))
+    setErrors((current) => ({ ...current, [key]: undefined }))
   }
 
   const save = () => {
-    const name = `${form.brand} ${form.flavor}`.trim()
-    if (!name) return
-    const metrics = calculateFoodMetrics(form)
-    onSave({
-      id: `custom-${crypto.randomUUID()}`,
-      name,
-      brand: form.brand || null,
-      flavor: form.flavor || null,
-      category: form.category || null,
-      prep: form.prep || null,
-      servings: 1,
-      servingOz: metrics.servingOz,
-      servingGrams: form.servingGrams,
-      calories: form.calories,
-      fat: form.fat,
-      sodium: form.sodium,
-      potassium: form.potassium,
-      carbs: form.carbs,
-      fiber: form.fiber,
-      sugar: form.sugar,
-      otherCarbs: Math.max(0, form.carbs - form.fiber - form.sugar),
-      protein: form.protein,
-      caloriesPerOz: metrics.caloriesPerOz,
-      caloriesPerGram: metrics.caloriesPerGram,
-      carbProteinRatio: metrics.carbProteinRatio,
-      fatCalorieFraction: metrics.fatCalorieFraction,
-      sugarCalorieFraction: metrics.sugarCalorieFraction,
-      sodiumPerCalorie: metrics.sodiumPerCalorie,
-      caloriesPerContainer: form.calories,
-      custom: true,
+    const numberFrom = (value: string) =>
+      value.trim() === '' ? Number.NaN : Number(value)
+    const result = customFoodInputSchema.safeParse({
+      brand: form.brand,
+      flavor: form.flavor,
+      category: form.category,
+      prep: form.prep,
+      servingGrams: numberFrom(form.servingGrams),
+      calories: numberFrom(form.calories),
+      fat: numberFrom(form.fat),
+      sodium: numberFrom(form.sodium),
+      potassium: numberFrom(form.potassium),
+      carbs: numberFrom(form.carbs),
+      fiber: numberFrom(form.fiber),
+      sugar: numberFrom(form.sugar),
+      protein: numberFrom(form.protein),
     })
+    if (!result.success) {
+      const nextErrors: Partial<Record<FormKey, string>> = {}
+      result.error.issues.forEach((issue) => {
+        const field = issue.path[0]
+        if (typeof field === 'string' && !(field in nextErrors)) {
+          nextErrors[field as FormKey] = issue.message
+        }
+      })
+      setErrors(nextErrors)
+      return
+    }
+    onSave(createCustomFood(result.data))
   }
+
+  const errorFor = (key: FormKey) =>
+    errors[key] ? (
+      <span className="field-error" id={`custom-food-${key}-error`} role="alert">
+        {errors[key]}
+      </span>
+    ) : null
 
   return (
     <Modal title="Add a custom food" onClose={onClose}>
+      {Object.values(errors).some(Boolean) && (
+        <p className="form-error-summary" role="alert">
+          Fix the highlighted fields before saving this custom Food.
+        </p>
+      )}
       <div className="form-grid">
         <label>
           Brand
@@ -284,8 +354,13 @@ function FoodForm({
             value={form.brand}
             onChange={(event) => update('brand', event.target.value)}
             placeholder="Example: Trail Kitchen"
+            aria-invalid={Boolean(errors.brand)}
+            aria-describedby={
+              errors.brand ? 'custom-food-brand-error' : undefined
+            }
             autoFocus
           />
+          {errorFor('brand')}
         </label>
         <label>
           Food / flavor
@@ -293,7 +368,12 @@ function FoodForm({
             value={form.flavor}
             onChange={(event) => update('flavor', event.target.value)}
             placeholder="Example: Peanut noodles"
+            aria-invalid={Boolean(errors.flavor)}
+            aria-describedby={
+              errors.flavor ? 'custom-food-flavor-error' : undefined
+            }
           />
+          {errorFor('flavor')}
         </label>
         <label>
           Category
@@ -335,11 +415,16 @@ function FoodForm({
             {label}
             <input
               type="number"
-              min="0"
+              min={key === 'servingGrams' ? '0.1' : '0'}
               step="0.1"
               value={form[key]}
               onChange={(event) => update(key, event.target.value)}
+              aria-invalid={Boolean(errors[key])}
+              aria-describedby={
+                errors[key] ? `custom-food-${key}-error` : undefined
+              }
             />
+            {errorFor(key)}
           </label>
         ))}
       </div>

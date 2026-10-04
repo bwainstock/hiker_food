@@ -22,7 +22,25 @@ npm run preview
 ```
 
 Plans and custom foods are stored in the browser's local storage. Use **Export**
-in the planner to download a JSON backup.
+in the planner to download a versioned JSON backup. **Import**, **Reset**, and
+**Previous** provide previewed, one-step recovery operations without merging
+data.
+
+## Verification
+
+```bash
+npm run verify
+npm run test:e2e
+```
+
+See [the testing guide](docs/agents/testing.md) for all layers, browser coverage,
+and change policy.
+
+## Domain documentation
+
+- [Canonical domain language](GLOSSARY.md)
+- [Architecture decisions](docs/adr/)
+- [Agent domain-doc conventions](docs/agents/domain.md)
 
 ## Workbook mapping
 

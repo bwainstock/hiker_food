@@ -2,23 +2,20 @@ import { ArrowDownUp, Droplets, Search, Zap } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Badge, StatCard } from '../components/Ui'
 import { ELECTROLYTES } from '../data'
+import {
+  filterAndSortElectrolytes,
+} from '../lib/catalog'
+import type { ElectrolyteSortKey } from '../lib/catalog'
 import { round } from '../lib/nutrition'
-
-type SortKey = 'sodium' | 'potassium' | 'servingGrams' | 'ratio'
 
 export function ElectrolytesPage() {
   const [query, setQuery] = useState('')
-  const [sort, setSort] = useState<SortKey>('sodium')
+  const [sort, setSort] = useState<ElectrolyteSortKey>('sodium')
 
-  const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    return ELECTROLYTES.filter((item) =>
-      `${item.brand} ${item.flavor ?? ''}`.toLowerCase().includes(normalized),
-    ).sort((a, b) => {
-      const key = sort === 'ratio' ? 'sodiumPotassiumRatio' : sort
-      return (b[key] ?? 0) - (a[key] ?? 0)
-    })
-  }, [query, sort])
+  const filtered = useMemo(
+    () => filterAndSortElectrolytes(ELECTROLYTES, query, sort),
+    [query, sort],
+  )
 
   const averageSodium =
     ELECTROLYTES.reduce((sum, item) => sum + (item.sodium ?? 0), 0) /
@@ -56,13 +53,17 @@ export function ElectrolytesPage() {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search brand or product…"
+            aria-label="Search electrolyte products"
           />
         </label>
         <label className="select-field">
           <ArrowDownUp size={16} />
           <select
             value={sort}
-            onChange={(event) => setSort(event.target.value as SortKey)}
+            onChange={(event) =>
+              setSort(event.target.value as ElectrolyteSortKey)
+            }
+            aria-label="Sort electrolyte products"
           >
             <option value="sodium">Highest sodium</option>
             <option value="potassium">Highest potassium</option>
@@ -74,14 +75,18 @@ export function ElectrolytesPage() {
 
       <section className="electrolyte-grid">
         {filtered.map((item) => (
-          <article className="electrolyte-card" key={item.id}>
+          <article
+            className="electrolyte-card"
+            key={item.id}
+            aria-label={`${item.brand} ${item.flavor ?? 'Electrolyte mix'}`}
+          >
             <div className="electrolyte-card-head">
               <div className="electrolyte-icon">
                 <Droplets size={20} />
               </div>
               <div>
                 <span>{item.brand}</span>
-                <h3>{item.flavor ?? 'Electrolyte mix'}</h3>
+                <h2>{item.flavor ?? 'Electrolyte mix'}</h2>
               </div>
               {(item.caffeine ?? 0) > 0 && (
                 <Badge tone="amber">

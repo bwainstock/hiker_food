@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import type { KeyboardEvent, ReactNode } from 'react'
 import { X } from 'lucide-react'
 
 export function Badge({
@@ -23,7 +24,11 @@ export function StatCard({
   accent?: string
 }) {
   return (
-    <article className="stat-card" style={{ '--stat-accent': accent } as never}>
+    <article
+      className="stat-card"
+      aria-label={label}
+      style={{ '--stat-accent': accent } as never}
+    >
       <span>{label}</span>
       <strong>{value}</strong>
       {detail && <small>{detail}</small>}
@@ -75,7 +80,7 @@ export function EmptyState({
   return (
     <div className="empty-state">
       <div className="empty-icon">{icon}</div>
-      <h3>{title}</h3>
+      <h2>{title}</h2>
       <p>{description}</p>
       {action}
     </div>
@@ -91,18 +96,69 @@ export function Modal({
   children: ReactNode
   onClose: () => void
 }) {
+  const titleId = useId()
+  const modalRef = useRef<HTMLElement>(null)
+  const closeRef = useRef<HTMLButtonElement>(null)
+  const [opener] = useState<HTMLElement | null>(() => {
+    if (typeof document === 'undefined') return null
+    return document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+  })
+
+  useEffect(() => {
+    const modal = modalRef.current
+    if (!modal?.contains(document.activeElement)) {
+      closeRef.current?.focus()
+    }
+    return () => {
+      requestAnimationFrame(() => {
+        if (opener?.isConnected && !modal?.isConnected) opener.focus()
+      })
+    }
+  }, [opener])
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      onClose()
+      return
+    }
+    if (event.key !== 'Tab' || !modalRef.current) return
+
+    const focusable = Array.from(
+      modalRef.current.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), input:not(:disabled), select:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((element) => !element.hasAttribute('hidden'))
+    if (focusable.length === 0) return
+
+    const first = focusable[0]
+    const last = focusable.at(-1)!
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
+
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
       <section
+        ref={modalRef}
         className="modal"
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
         onMouseDown={(event) => event.stopPropagation()}
+        onKeyDown={handleKeyDown}
       >
         <div className="modal-header">
-          <h2>{title}</h2>
+          <h2 id={titleId}>{title}</h2>
           <button
+            ref={closeRef}
             className="icon-button"
             type="button"
             onClick={onClose}

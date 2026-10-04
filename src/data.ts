@@ -1,9 +1,13 @@
 import electrolyteData from './data/electrolytes.json'
 import foodData from './data/foods.json'
-import type { Electrolyte, Food } from './types'
+import { EN_US_COLLATOR } from './lib/catalog'
+import {
+  electrolyteCatalogSchema,
+  foodCatalogSchema,
+} from './lib/schemas'
 
-export const BUILT_IN_FOODS = foodData as Food[]
-export const ELECTROLYTES = electrolyteData as Electrolyte[]
+export const BUILT_IN_FOODS = foodCatalogSchema.parse(foodData)
+export const ELECTROLYTES = electrolyteCatalogSchema.parse(electrolyteData)
 
 export const FOOD_CATEGORIES = Array.from(
   new Set(
@@ -11,4 +15,4 @@ export const FOOD_CATEGORIES = Array.from(
       (category): category is string => Boolean(category),
     ),
   ),
-).sort((a, b) => a.localeCompare(b))
+).sort((a, b) => EN_US_COLLATOR.compare(a, b))

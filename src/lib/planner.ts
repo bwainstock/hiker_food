@@ -1,5 +1,6 @@
 import type { DayPlan, Food, MealName, PlannerState } from '../types'
 import { MEALS } from '../types'
+import { plannerStateSchema } from './schemas'
 
 export const createEmptyMeals = () =>
   MEALS.reduce(
@@ -16,36 +17,42 @@ export const createDay = (number: number): DayPlan => ({
   meals: createEmptyMeals(),
 })
 
-const starterFoods = [
-  ['Breakfast', "Backpacker's Pantry Granola with Bananas & Milk", 1],
-  ['Morning snacks', 'Honey Stinger Waffle, Short Stack with Maple', 2],
-  ['Morning snacks', "Justin's Classic Peanut Butter", 2],
-  ['Lunch', 'Open Nature Uncured Hot Italian Salami', 3],
-  ['Lunch', 'Tillamook Cheese packet, Medium Cheddar', 3],
-  ['Afternoon snacks', 'Safeway (bulk dispenser) Mountain Mix', 1],
-  ['Afternoon snacks', 'Kind Salted Caramel Dark Chocolate Nut', 1],
-  ['Recovery', 'Tailwind Nutrition Chocolate Recovery', 1],
+export const STARTER_PLAN_ITEMS = [
+  ['Breakfast', 'backpacker-s-pantry-granola-with-bananas-milk-399', 1],
+  ['Morning snacks', 'honey-stinger-waffle-short-stack-with-maple-235', 2],
+  ['Morning snacks', 'justin-s-classic-peanut-butter-19', 2],
+  ['Lunch', 'open-nature-uncured-hot-italian-salami-679', 3],
+  ['Lunch', 'tillamook-cheese-packet-medium-cheddar-514', 3],
+  ['Afternoon snacks', 'safeway-bulk-dispenser-mountain-mix-334', 1],
+  ['Afternoon snacks', 'kind-salted-caramel-dark-chocolate-nut-335', 1],
+  ['Recovery', 'tailwind-nutrition-chocolate-recovery-782', 1],
   [
     'Dinner',
-    'Pinnacle Foods Thai Peanut Curry, Roasted Vegetables, Rice Noodles',
+    'pinnacle-foods-thai-peanut-curry-roasted-vegetables-rice-noo-1584',
     1,
   ],
 ] as const
 
-export function createStarterState(foods: Food[]): PlannerState {
-  const day = createDay(1)
-  const byName = new Map(foods.map((food) => [food.name, food]))
+export function validateStarterFoodIds(foods: readonly Food[]) {
+  const available = new Set(foods.map((food) => food.id))
+  const missing = STARTER_PLAN_ITEMS.map(([, foodId]) => foodId).filter(
+    (foodId) => !available.has(foodId),
+  )
+  if (missing.length > 0) {
+    throw new Error(`Starter state references missing Food IDs: ${missing.join(', ')}`)
+  }
+}
 
-  starterFoods.forEach(([meal, name, quantity]) => {
-    const food = byName.get(name)
-    if (food) {
-      day.meals[meal].push({
-        id: crypto.randomUUID(),
-        foodId: food.id,
-        quantity,
-      })
-    }
+export function createStarterState(foods: Food[]): PlannerState {
+  validateStarterFoodIds(foods)
+  const day = createDay(1)
+  STARTER_PLAN_ITEMS.forEach(([meal, foodId, quantity]) => {
+    day.meals[meal].push({
+      id: crypto.randomUUID(),
+      foodId,
+      quantity,
+    })
   })
 
-  return { days: [day], customFoods: [] }
+  return plannerStateSchema.parse({ days: [day], customFoods: [] })
 }

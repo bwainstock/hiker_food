@@ -83,7 +83,10 @@ export function Layout({
 
   return (
     <div className="app-shell">
-      <aside className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}>
+      <aside
+        className={`sidebar ${menuOpen ? 'sidebar-open' : ''}`}
+        aria-label="Application navigation"
+      >
         <div className="brand">
           <div className="brand-mark">
             <Mountain size={23} strokeWidth={2.4} />
@@ -102,7 +105,7 @@ export function Layout({
           </button>
         </div>
 
-        <nav>
+        <nav aria-label="Primary">
           <span className="nav-label">Plan</span>
           {NAV_ITEMS.slice(0, 3).map((item) => (
             <NavItem
@@ -180,6 +183,7 @@ function NavItem({
       className={`nav-item ${active ? 'active' : ''}`}
       type="button"
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
     >
       <Icon size={19} />
       <span>

@@ -7,20 +7,32 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:unit": "vitest run",
+    "test:e2e:smoke:preview": "playwright test --grep @smoke --project=chromium-desktop --project=chromium-mobile",
+    "test:e2e:smoke": "npm run build && npm run test:e2e:smoke:preview",
+    "test:e2e:preview": "playwright test --project=chromium-desktop --project=chromium-mobile",
+    "test:e2e": "npm run build && npm run test:e2e:preview",
+    "test:e2e:cross-browser:preview": "playwright test --project=firefox --project=webkit",
+    "test:e2e:cross-browser": "npm run build && npm run test:e2e:cross-browser:preview",
+    "verify": "npm run lint && npm run build && npm run test:unit && npm run test:e2e:smoke:preview"
   },
   "dependencies": {
     "lucide-react": "^1.52.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "oxlint": "^1.81.0",
     "typescript": "~6.0.2",
-    "vite": "^8.3.0"
+    "vite": "^8.3.0",
+    "vitest": "^5.0.3"
   }
 }

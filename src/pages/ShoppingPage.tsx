@@ -1,5 +1,13 @@
-import { Check, PackageCheck, Printer, ShoppingBag } from 'lucide-react'
+import {
+  AlertTriangle,
+  Check,
+  PackageCheck,
+  Printer,
+  ShoppingBag,
+  Trash2,
+} from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { FoodPicker } from '../components/FoodPicker'
 import { Badge, EmptyState, StatCard } from '../components/Ui'
 import {
   addNutrition,
@@ -7,47 +15,43 @@ import {
   nutritionForFood,
   round,
 } from '../lib/nutrition'
-import type { Food, PlannerState } from '../types'
-import { MEALS } from '../types'
+import { aggregateShoppingList } from '../lib/shopping'
+import {
+  removeFoodReferences,
+  replaceFoodReferences,
+} from '../lib/state'
+import type {
+  Food,
+  PlannerState,
+  PlannerStateUpdater,
+} from '../types'
 
 export function ShoppingPage({
   state,
+  setState,
+  foods,
   foodsById,
 }: {
   state: PlannerState
+  setState: PlannerStateUpdater
+  foods: Food[]
   foodsById: Map<string, Food>
 }) {
   const [packed, setPacked] = useState<Set<string>>(new Set())
+  const [replacingFoodId, setReplacingFoodId] = useState<string | null>(null)
 
-  const rows = useMemo(() => {
-    const quantities = new Map<string, number>()
-    state.days.forEach((day) =>
-      MEALS.forEach((meal) =>
-        day.meals[meal].forEach((item) =>
-          quantities.set(
-            item.foodId,
-            (quantities.get(item.foodId) ?? 0) + item.quantity,
-          ),
-        ),
-      ),
-    )
-    return Array.from(quantities)
-      .flatMap(([foodId, quantity]) => {
-        const food = foodsById.get(foodId)
-        return food ? [{ food, quantity }] : []
-      })
-      .sort((a, b) =>
-        (a.food.category ?? '').localeCompare(b.food.category ?? '') ||
-        a.food.name.localeCompare(b.food.name),
-      )
-  }, [state.days, foodsById])
+  const { rows, unresolved } = useMemo(
+    () => aggregateShoppingList(state, foodsById),
+    [state, foodsById],
+  )
 
   const total = addNutrition(
     ...rows.map(({ food, quantity }) => nutritionForFood(food, quantity)),
   )
   const categories = new Set(rows.map(({ food }) => food.category)).size
+  const packedCount = rows.filter(({ food }) => packed.has(food.id)).length
 
-  if (rows.length === 0) {
+  if (rows.length === 0 && unresolved.length === 0) {
     return (
       <EmptyState
         icon={<ShoppingBag />}
@@ -59,11 +63,15 @@ export function ShoppingPage({
 
   return (
     <div className="shopping-page">
-      <section className="stat-grid stat-grid-three">
+      <section className="stat-grid stat-grid-three print-totals">
         <StatCard
-          label="Unique foods"
+          label="Available foods"
           value={rows.length.toString()}
-          detail={`Across ${categories} categories`}
+          detail={
+            unresolved.length
+              ? `${unresolved.length} unavailable reference${unresolved.length === 1 ? '' : 's'}`
+              : `Across ${categories} categories`
+          }
           accent="#227b62"
         />
         <StatCard
@@ -74,11 +82,24 @@ export function ShoppingPage({
         />
         <StatCard
           label="Packed"
-          value={`${packed.size} / ${rows.length}`}
-          detail={`${round((packed.size / rows.length) * 100)}% complete`}
+          value={`${packedCount} / ${rows.length}`}
+          detail={`${round(
+            rows.length ? (packedCount / rows.length) * 100 : 0,
+          )}% complete`}
           accent="#e56f35"
         />
       </section>
+
+      {unresolved.length > 0 && (
+        <div className="incomplete-warning" role="status">
+          <AlertTriangle size={18} />
+          <p>
+            <strong>Shopping and nutrition totals are incomplete.</strong>{' '}
+            Unavailable Food references are listed separately and excluded from
+            weight and nutrition totals.
+          </p>
+        </div>
+      )}
 
       <section className="table-card">
         <div className="table-card-header">
@@ -87,7 +108,7 @@ export function ShoppingPage({
             <h2>Pack list</h2>
           </div>
           <button
-            className="button button-secondary"
+            className="button button-secondary print-hidden"
             type="button"
             onClick={() => window.print()}
           >
@@ -102,6 +123,7 @@ export function ShoppingPage({
                 className={`shopping-row ${isPacked ? 'packed' : ''}`}
                 type="button"
                 key={food.id}
+                aria-pressed={isPacked}
                 onClick={() =>
                   setPacked((current) => {
                     const next = new Set(current)
@@ -134,6 +156,78 @@ export function ShoppingPage({
           })}
         </div>
       </section>
+
+      {unresolved.length > 0 && (
+        <section className="table-card unresolved-shopping">
+          <div className="table-card-header">
+            <div>
+              <span className="eyebrow">Needs attention</span>
+              <h2>Unavailable food</h2>
+            </div>
+          </div>
+          <div className="shopping-list">
+            {unresolved.map((row) => (
+              <div className="shopping-row unresolved-shopping-row" key={row.foodId}>
+                <span className="unresolved-mark">
+                  <AlertTriangle size={16} />
+                </span>
+                <span className="shopping-name">
+                  <strong>Unavailable food</strong>
+                  <small>
+                    Food ID: {row.foodId} · {row.itemCount} Plan item
+                    {row.itemCount === 1 ? '' : 's'} ·{' '}
+                    {row.locations.join(', ')}
+                  </small>
+                </span>
+                <span className="shopping-quantity">
+                  <strong>{round(row.quantity, 1)}</strong>
+                  <small>servings</small>
+                </span>
+                <span className="unresolved-actions print-hidden">
+                  <button
+                    className="button button-quiet item-action"
+                    type="button"
+                    aria-expanded={replacingFoodId === row.foodId}
+                    onClick={() =>
+                      setReplacingFoodId((current) =>
+                        current === row.foodId ? null : row.foodId,
+                      )
+                    }
+                  >
+                    Replace
+                  </button>
+                  <button
+                    className="icon-button danger"
+                    type="button"
+                    aria-label={`Remove unavailable food ${row.foodId}`}
+                    onClick={() =>
+                      setState((current) =>
+                        removeFoodReferences(current, row.foodId),
+                      )
+                    }
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </span>
+                {replacingFoodId === row.foodId && (
+                  <div className="unresolved-replacement">
+                    <FoodPicker
+                      foods={foods}
+                      placeholder={`Choose replacement for ${row.foodId}…`}
+                      onSelect={(food) => {
+                        setState((current) =>
+                          replaceFoodReferences(current, row.foodId, food.id),
+                        )
+                        setReplacingFoodId(null)
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       <div className="shopping-footer-note">
         <PackageCheck size={18} />
         Quantities are summed exactly like the workbook’s Shopping List pivot

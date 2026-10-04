@@ -81,6 +81,11 @@ export interface PlannerState {
   customFoods: Food[]
 }
 
+export interface PortableBackupV1 {
+  schemaVersion: 1
+  state: PlannerState
+}
+
 export interface Nutrition {
   calories: number
   weightOz: number
@@ -93,6 +98,10 @@ export interface Nutrition {
   sugar: number
   protein: number
 }
+
+export type PlannerStateUpdater = (
+  updater: (state: PlannerState) => PlannerState,
+) => void
 
 export type Route =
   | 'planner'

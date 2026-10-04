@@ -4,10 +4,10 @@ import { Badge, ProgressBar, StatCard } from '../components/Ui'
 import { ELECTROLYTES } from '../data'
 import {
   addNutrition,
-  interpolateSodiumNeed,
   nutritionForItems,
   round,
 } from '../lib/nutrition'
+import { calculateSupplementScenario } from '../lib/supplements'
 import type { Food, PlannerState } from '../types'
 import { MEALS } from '../types'
 
@@ -25,7 +25,8 @@ export function SodiumCalculatorPage({
       ELECTROLYTES[0].id,
   )
 
-  const day = state.days.find((candidate) => candidate.id === dayId)
+  const day =
+    state.days.find((candidate) => candidate.id === dayId) ?? state.days[0]
   const diet = useMemo(
     () =>
       day
@@ -35,19 +36,29 @@ export function SodiumCalculatorPage({
         : addNutrition(),
     [day, foodsById],
   )
+  const unresolvedItems = useMemo(
+    () =>
+      day
+        ? MEALS.flatMap((meal) =>
+            day.meals[meal].filter((item) => !foodsById.has(item.foodId)),
+          )
+        : [],
+    [day, foodsById],
+  )
+  const totalsIncomplete = unresolvedItems.length > 0
 
   const selected =
     ELECTROLYTES.find((item) => item.id === electrolyteId) ?? ELECTROLYTES[0]
-  const sodiumTarget = interpolateSodiumNeed(temperature)
-  const sweatSodium = Math.max(0, sodiumTarget - 1500)
-  const sweatPotassium = sweatSodium / 4.5
-  const potassiumTarget = 3400 + sweatPotassium
-  const sodiumGap = Math.max(0, sodiumTarget - diet.sodium)
-  const potassiumGap = Math.max(0, potassiumTarget - diet.potassium)
-  const servings =
-    (selected.sodium ?? 0) > 0 ? sodiumGap / (selected.sodium ?? 1) : 0
-  const servedPotassium = (selected.potassium ?? 0) * servings
-  const potassiumRemaining = Math.max(0, potassiumGap - servedPotassium)
+  const {
+    sodiumTarget,
+    sweatSodium,
+    sweatPotassium,
+    potassiumTarget,
+    sodiumGap,
+    servings,
+    servedPotassium,
+    potassiumRemaining,
+  } = calculateSupplementScenario(temperature, diet, selected)
 
   return (
     <div className="calculator-page">
@@ -82,7 +93,10 @@ export function SodiumCalculatorPage({
         <div className="form-grid two-column">
           <label>
             Planned menu
-            <select value={dayId} onChange={(event) => setDayId(event.target.value)}>
+            <select
+              value={day?.id ?? ''}
+              onChange={(event) => setDayId(event.target.value)}
+            >
               {state.days.map((option) => (
                 <option value={option.id} key={option.id}>
                   {option.name}
@@ -108,6 +122,19 @@ export function SodiumCalculatorPage({
         </div>
       </section>
 
+      {totalsIncomplete && (
+        <div className="incomplete-warning" role="status">
+          <AlertCircle size={18} />
+          <p>
+            <strong>Food sodium and totals are incomplete.</strong>{' '}
+            <span>
+              Replace or remove unavailable Foods before using a serving
+              recommendation.
+            </span>
+          </p>
+        </div>
+      )}
+
       <section className="stat-grid stat-grid-four">
         <StatCard
           label="Sodium target"
@@ -118,13 +145,25 @@ export function SodiumCalculatorPage({
         <StatCard
           label="From food"
           value={`${round(diet.sodium).toLocaleString()} mg`}
-          detail={`${round((diet.sodium / sodiumTarget) * 100)}% of target`}
+          detail={
+            totalsIncomplete
+              ? 'Known Foods only · incomplete'
+              : `${round((diet.sodium / sodiumTarget) * 100)}% of target`
+          }
           accent="#227b62"
         />
         <StatCard
           label="Supplement gap"
-          value={`${round(sodiumGap).toLocaleString()} mg`}
-          detail="Additional sodium"
+          value={
+            totalsIncomplete
+              ? 'Incomplete'
+              : `${round(sodiumGap).toLocaleString()} mg`
+          }
+          detail={
+            totalsIncomplete
+              ? 'Resolve unavailable Foods'
+              : 'Additional sodium'
+          }
           accent="#4779b8"
         />
         <StatCard
@@ -145,14 +184,20 @@ export function SodiumCalculatorPage({
             <Droplets size={22} />
           </div>
           <ProgressBar
-            label="Sodium from food"
+            label={
+              totalsIncomplete ? 'Sodium from known Foods' : 'Sodium from food'
+            }
             value={diet.sodium}
             max={sodiumTarget}
             display={`${round(diet.sodium).toLocaleString()} / ${round(sodiumTarget).toLocaleString()} mg`}
             tone="green"
           />
           <ProgressBar
-            label="Potassium from food"
+            label={
+              totalsIncomplete
+                ? 'Potassium from known Foods'
+                : 'Potassium from food'
+            }
             value={diet.potassium}
             max={potassiumTarget}
             display={`${round(diet.potassium).toLocaleString()} / ${round(potassiumTarget).toLocaleString()} mg`}
@@ -188,13 +233,30 @@ export function SodiumCalculatorPage({
             </div>
             <FlaskConical size={22} />
           </div>
-          <div className="serving-callout">
-            <span>To fill the sodium gap</span>
-            <strong>{round(servings, 1)} servings</strong>
-            <small>
-              Adds {round((selected.potassium ?? 0) * servings).toLocaleString()}{' '}
-              mg potassium
-            </small>
+          <div
+            className={`serving-callout ${
+              totalsIncomplete ? 'serving-callout-incomplete' : ''
+            }`}
+          >
+            {totalsIncomplete ? (
+              <>
+                <span>Serving recommendation</span>
+                <strong>Recommendation unavailable</strong>
+                <small>Food sodium must be complete first.</small>
+              </>
+            ) : (
+              <>
+                <span>To fill the sodium gap</span>
+                <strong>{round(servings, 1)} servings</strong>
+                <small>
+                  Adds{' '}
+                  {round(
+                    (selected.potassium ?? 0) * servings,
+                  ).toLocaleString()}{' '}
+                  mg potassium
+                </small>
+              </>
+            )}
           </div>
           <div className="supplement-grid">
             <div>
@@ -204,28 +266,47 @@ export function SodiumCalculatorPage({
             </div>
             <div>
               <span>After supplement</span>
-              <strong>
-                {round(diet.sodium + (selected.sodium ?? 0) * servings).toLocaleString()}{' '}
-                mg Na
-              </strong>
-              <small>
-                {round(diet.potassium + servedPotassium).toLocaleString()} mg K
-              </small>
+              {totalsIncomplete ? (
+                <>
+                  <strong>Unavailable</strong>
+                  <small>Resolve unavailable Foods</small>
+                </>
+              ) : (
+                <>
+                  <strong>
+                    {round(
+                      diet.sodium + (selected.sodium ?? 0) * servings,
+                    ).toLocaleString()}{' '}
+                    mg Na
+                  </strong>
+                  <small>
+                    {round(
+                      diet.potassium + servedPotassium,
+                    ).toLocaleString()}{' '}
+                    mg K
+                  </small>
+                </>
+              )}
             </div>
           </div>
-          {potassiumRemaining > 0 ? (
-            <div className="calculator-warning">
-              <AlertCircle size={18} />
-              <p>
-                This closes the sodium gap but leaves about{' '}
-                <strong>{round(potassiumRemaining).toLocaleString()} mg</strong> of
-                estimated potassium need. Adjust food choices or select a more
-                potassium-forward product.
-              </p>
-            </div>
-          ) : (
-            <Badge tone="green">Estimated sodium and potassium needs covered</Badge>
-          )}
+          {!totalsIncomplete &&
+            (potassiumRemaining > 0 ? (
+              <div className="calculator-warning">
+                <AlertCircle size={18} />
+                <p>
+                  This closes the sodium gap but leaves about{' '}
+                  <strong>
+                    {round(potassiumRemaining).toLocaleString()} mg
+                  </strong>{' '}
+                  of estimated potassium need. Adjust food choices or select a
+                  more potassium-forward product.
+                </p>
+              </div>
+            ) : (
+              <Badge tone="green">
+                Estimated sodium and potassium needs covered
+              </Badge>
+            ))}
         </section>
       </div>
 

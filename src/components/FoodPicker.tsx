@@ -1,6 +1,7 @@
 import { Search, Sparkles } from 'lucide-react'
-import { useMemo, useRef, useState } from 'react'
+import { useId, useMemo, useRef, useState } from 'react'
 import type { Food } from '../types'
+import { searchFoods } from '../lib/catalog'
 import { round } from '../lib/nutrition'
 
 export function FoodPicker({
@@ -15,19 +16,9 @@ export function FoodPicker({
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
   const container = useRef<HTMLDivElement>(null)
+  const resultsId = useId()
 
-  const results = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    if (!normalized) return foods.slice(0, 8)
-    const words = normalized.split(/\s+/)
-    return foods
-      .filter((food) => {
-        const haystack =
-          `${food.name} ${food.category ?? ''} ${food.prep ?? ''}`.toLowerCase()
-        return words.every((word) => haystack.includes(word))
-      })
-      .slice(0, 12)
-  }, [foods, query])
+  const results = useMemo(() => searchFoods(foods, query), [foods, query])
 
   return (
     <div
@@ -47,12 +38,18 @@ export function FoodPicker({
           setOpen(true)
         }}
         aria-label={placeholder}
+        role="combobox"
+        aria-autocomplete="list"
+        aria-expanded={open}
+        aria-controls={open ? resultsId : undefined}
       />
       {open && (
-        <div className="food-results">
+        <div className="food-results" id={resultsId} role="listbox">
           {results.map((food) => (
             <button
               type="button"
+              role="option"
+              aria-selected="false"
               key={food.id}
               onClick={() => {
                 onSelect(food)
