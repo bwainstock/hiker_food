@@ -1,0 +1,63 @@
+:root {
+  font-family: 'Avenir Next', Avenir, 'Segoe UI', system-ui, sans-serif;
+  color: #26352e;
+  background: #f4f5ef;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --ink: #203129;
+  --muted: #68756f;
+  --line: #dfe4dc;
+  --paper: #fffefb;
+  --green: #1d6b52;
+  --green-dark: #14503e;
+  --green-soft: #e5f2eb;
+  --orange: #e56f35;
+  --shadow: 0 1px 2px rgb(26 44 35 / 4%), 0 10px 30px rgb(26 44 35 / 5%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+button,
+select {
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+strong {
+  font-family: 'Avenir Next', Avenir, 'Segoe UI', system-ui, sans-serif;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid rgb(47 132 102 / 22%);
+  outline-offset: 2px;
+}
