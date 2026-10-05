@@ -125,7 +125,7 @@ const recipeOnlyIngredientSchema = z
     kind: z.literal('recipe-only'),
     id: nonemptyString,
     name: nonemptyString,
-    weightGrams: finiteNumber.positive(),
+    weightGrams: finiteNumber.positive('Enter a weight greater than 0.'),
     calories: finiteNumber.nonnegative(),
     fat: finiteNumber.nonnegative(),
     carbs: finiteNumber.nonnegative(),
