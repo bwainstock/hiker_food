@@ -130,7 +130,7 @@ test('reset cancel/confirm, previous-state restore, and final-day invariant', as
     .click()
   await expect(page.getByLabel('Day name')).toHaveValue('Original menu')
   await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
-    '210 kcal',
+    '714 kcal',
   )
   expect(
     JSON.parse(
@@ -291,14 +291,24 @@ test('version 2 export, atomic import, invalid import, and Shopping-list restora
     ),
   ).toEqual({ schemaVersion: 2, state: recognizable })
   await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
-    '1,000 kcal',
+    '2,392 kcal',
   )
 
   await navigateTo(page, 'Shopping list')
   await expect(
     page.getByRole('button', {
-      name: /Canyon Kitchen Sesame Noodles.*2.*servings/,
+      name: /Canyon Kitchen Sesame Noodles.*4.8.*servings/,
     }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', {
+      name: /Spice mix.*From Canyon bowl.*9.2 g.*12 kcal/,
+    }),
+  ).toBeVisible()
+  await expect(
+    page.getByText(
+      /Food ID: retired-topping.*Canyon menu · Lunch · Canyon bowl/,
+    ),
   ).toBeVisible()
 
   await navigateTo(page, 'Meal planner')
