@@ -35,6 +35,7 @@ jobs:
 
   full-regression:
     name: Full regression / Chromium
+    needs: smoke
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
