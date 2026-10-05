@@ -1,29 +1,37 @@
-import { CookingPot, Pencil, Plus, Trash2 } from 'lucide-react'
-import { useId, useState } from 'react'
+import { CookingPot, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import { useId, useMemo, useState } from 'react'
 import { FoodPicker } from '../components/FoodPicker'
 import { EmptyState, Modal } from '../components/Ui'
 import {
   addFoodIngredient,
+  addRecipeOnlyIngredient,
   createRecipeDraft,
+  filterRecipes,
+  formatRecipeCalories,
   removeFoodIngredient,
+  removeRecipeOnlyIngredient,
   resolveFoodRecipe,
   saveRecipeDraft,
   updateFoodIngredientQuantity,
+  updateRecipeOnlyIngredient,
   validateRecipeDraft,
 } from '../lib/recipe'
 import { formatWeight, round } from '../lib/nutrition'
-import type {
-  Food,
-  PlannerState,
-  PlannerStateUpdater,
-  Recipe,
+import {
+  RECIPE_CATEGORIES,
+  type Food,
+  type PlannerState,
+  type PlannerStateUpdater,
+  type Recipe,
+  type RecipeCategory,
+  type RecipeOnlyIngredient,
 } from '../types'
 import type { RecipeDraft } from '../lib/recipe'
 
 interface RecipeErrors {
   name?: string
   ingredients?: string
-  quantities: Record<string, string>
+  fields: Record<string, Record<string, string>>
 }
 
 interface RecipeEditor {
@@ -43,6 +51,12 @@ export function RecipesPage({
   foodsById: ReadonlyMap<string, Food>
 }) {
   const [editor, setEditor] = useState<RecipeEditor | null>(null)
+  const [query, setQuery] = useState('')
+  const [category, setCategory] = useState<RecipeCategory | null>(null)
+  const filteredRecipes = useMemo(
+    () => filterRecipes(state.recipes, foodsById, query, category),
+    [state.recipes, foodsById, query, category],
+  )
 
   const createRecipe = () =>
     setEditor({ title: 'Create Recipe', draft: createRecipeDraft() })
@@ -52,13 +66,13 @@ export function RecipesPage({
       draft: createRecipeDraft(recipe),
     })
 
-  return (
-    <div className="recipes-page">
-      {state.recipes.length === 0 ? (
+  if (state.recipes.length === 0 && !editor) {
+    return (
+      <div className="recipes-page">
         <EmptyState
           icon={<CookingPot size={27} />}
           title="No Recipes yet"
-          description="Combine Foods into a reusable one-serving Recipe with live nutrition totals."
+          description="Combine Foods and Recipe-only ingredients into a reusable one-serving Recipe."
           action={
             <button
               className="button button-primary"
@@ -69,32 +83,70 @@ export function RecipesPage({
             </button>
           }
         />
-      ) : (
-        <>
-          <div className="recipes-toolbar">
-            <p>
-              {state.recipes.length} saved Recipe
-              {state.recipes.length === 1 ? '' : 's'}
-            </p>
-            <button
-              className="button button-primary"
-              type="button"
-              onClick={createRecipe}
-            >
-              <Plus size={16} /> Create Recipe
-            </button>
-          </div>
-          <section className="recipe-grid" aria-label="Saved Recipes">
-            {state.recipes.map((recipe) => (
-              <RecipeCard
-                key={recipe.id}
-                recipe={recipe}
-                foodsById={foodsById}
-                onEdit={() => editRecipe(recipe)}
-              />
+      </div>
+    )
+  }
+
+  return (
+    <div className="recipes-page">
+      <div className="recipes-toolbar">
+        <div className="recipe-search">
+          <Search size={16} aria-hidden="true" />
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            aria-label="Search Recipes"
+            placeholder="Search Recipes"
+          />
+        </div>
+        <label className="recipe-category-filter">
+          <span>Category</span>
+          <select
+            aria-label="Recipe category"
+            value={category ?? ''}
+            onChange={(event) =>
+              setCategory(
+                (event.target.value || null) as RecipeCategory | null,
+              )
+            }
+          >
+            <option value="">All categories</option>
+            {RECIPE_CATEGORIES.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
             ))}
-          </section>
-        </>
+          </select>
+        </label>
+        <button
+          className="button button-primary"
+          type="button"
+          onClick={createRecipe}
+        >
+          <Plus size={16} /> Create Recipe
+        </button>
+      </div>
+
+      {filteredRecipes.length === 0 ? (
+        <div role="status" aria-live="polite">
+          <EmptyState
+            icon={<Search size={27} />}
+            title="No matching Recipes"
+            description="Try another search or choose All categories."
+          />
+        </div>
+      ) : (
+        <section className="recipe-grid" aria-label="Saved Recipes">
+          {filteredRecipes.map((recipe) => (
+            <RecipeCard
+              key={recipe.id}
+              recipe={recipe}
+              foodsById={foodsById}
+              onEdit={() => editRecipe(recipe)}
+            />
+          ))}
+        </section>
       )}
 
       {editor && (
@@ -137,8 +189,11 @@ function RecipeCard({
   const summary = resolveFoodRecipe(recipe, foodsById)
   const { nutrition } = summary
   const metrics = [
-    ['Weight', `${formatWeight(nutrition.weightOz)} · ${round(nutrition.weightGrams, 1)} g`],
-    ['Calories', `${round(nutrition.calories)} kcal`],
+    [
+      'Weight',
+      `${formatWeight(nutrition.weightOz)} · ${round(nutrition.weightGrams, 1)} g`,
+    ],
+    ['Calories', formatRecipeCalories(nutrition.calories)],
     ['Fat', `${round(nutrition.fat, 1)} g`],
     ['Carbohydrates', `${round(nutrition.carbs, 1)} g`],
     ['Protein', `${round(nutrition.protein, 1)} g`],
@@ -152,11 +207,11 @@ function RecipeCard({
     <article className="recipe-card" aria-label={recipe.name}>
       <div className="recipe-card-header">
         <div>
-          <span className="eyebrow">One serving</span>
+          <span className="eyebrow">{recipe.category ?? 'Uncategorized'}</span>
           <h2>{recipe.name}</h2>
           <p>
-            {summary.ingredientCount} Food ingredient
-            {summary.ingredientCount === 1 ? '' : 's'}
+            {summary.ingredientCount} ingredient
+            {summary.ingredientCount === 1 ? '' : 's'} · One serving
           </p>
         </div>
         <button
@@ -168,6 +223,9 @@ function RecipeCard({
           <Pencil size={14} /> Edit
         </button>
       </div>
+      {recipe.instructions && (
+        <p className="recipe-instructions">{recipe.instructions}</p>
+      )}
       {!summary.complete && (
         <p className="recipe-warning" role="status">
           Some Foods are unavailable, so these totals are incomplete.
@@ -202,26 +260,34 @@ function RecipeForm({
   onCancel: () => void
   onSave: (draft: RecipeDraft) => void
 }) {
-  const nameErrorId = useId()
-  const ingredientErrorId = useId()
-  const [errors, setErrors] = useState<RecipeErrors>({
-    quantities: {},
-  })
+  const errorId = useId()
+  const [errors, setErrors] = useState<RecipeErrors>({ fields: {} })
 
   const save = () => {
     const result = validateRecipeDraft(draft)
     if (result.success) {
-      onSave(draft)
+      onSave(result.data)
       return
     }
 
-    const next: RecipeErrors = { quantities: {} }
+    const next: RecipeErrors = { fields: {} }
     result.error.issues.forEach((issue) => {
-      if (issue.path[0] === 'name') next.name = issue.message
+      if (issue.path[0] === 'name') {
+        next.name = issue.message
+        return
+      }
       if (issue.path[0] !== 'ingredients') return
-      if (typeof issue.path[1] === 'number' && issue.path[2] === 'quantity') {
-        const ingredient = draft.ingredients[issue.path[1]]
-        if (ingredient) next.quantities[ingredient.foodId] = issue.message
+      const index = issue.path[1]
+      const field = issue.path[2]
+      const ingredient =
+        typeof index === 'number' ? draft.ingredients[index] : undefined
+      if (ingredient && typeof field === 'string') {
+        const key =
+          ingredient.kind === 'food' ? ingredient.foodId : ingredient.id
+        next.fields[key] = {
+          ...next.fields[key],
+          [field]: issue.message,
+        }
       } else {
         next.ingredients = issue.message
       }
@@ -229,40 +295,87 @@ function RecipeForm({
     setErrors(next)
   }
 
+  const foodIngredients = draft.ingredients.filter(
+    (ingredient) => ingredient.kind === 'food',
+  )
+  const recipeOnlyIngredients = draft.ingredients.filter(
+    (ingredient): ingredient is RecipeOnlyIngredient =>
+      ingredient.kind === 'recipe-only',
+  )
+
   return (
     <Modal title={title} onClose={onCancel}>
       <div className="recipe-form">
+        <div className="recipe-basics">
+          <label className="recipe-name-field">
+            <span>Recipe name</span>
+            <input
+              value={draft.name}
+              onChange={(event) =>
+                onDraftChange({ ...draft, name: event.target.value })
+              }
+              aria-invalid={Boolean(errors.name)}
+              aria-describedby={errors.name ? `${errorId}-name` : undefined}
+              autoFocus
+            />
+            {errors.name && (
+              <span
+                className="field-error"
+                id={`${errorId}-name`}
+                role="alert"
+              >
+                {errors.name}
+              </span>
+            )}
+          </label>
+          <label className="recipe-name-field">
+            <span>Category</span>
+            <select
+              value={draft.category ?? ''}
+              onChange={(event) =>
+                onDraftChange({
+                  ...draft,
+                  category:
+                    (event.target.value as RecipeCategory) || null,
+                })
+              }
+            >
+              <option value="">Uncategorized</option>
+              {RECIPE_CATEGORIES.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <label className="recipe-name-field">
-          <span>Recipe name</span>
-          <input
-            value={draft.name}
+          <span>Preparation instructions</span>
+          <textarea
+            value={draft.instructions}
             onChange={(event) =>
-              onDraftChange({ ...draft, name: event.target.value })
+              onDraftChange({
+                ...draft,
+                instructions: event.target.value,
+              })
             }
-            aria-invalid={Boolean(errors.name)}
-            aria-describedby={errors.name ? nameErrorId : undefined}
-            autoFocus
+            rows={3}
           />
-          {errors.name && (
-            <span className="field-error" id={nameErrorId} role="alert">
-              {errors.name}
-            </span>
-          )}
         </label>
 
         <fieldset
           className="recipe-ingredients"
           aria-describedby={
-            errors.ingredients ? ingredientErrorId : undefined
+            errors.ingredients ? `${errorId}-ingredients` : undefined
           }
         >
           <legend>Food ingredients</legend>
-          {draft.ingredients.length > 0 && (
+          {foodIngredients.length > 0 && (
             <div className="recipe-ingredient-list">
-              {draft.ingredients.map((ingredient) => {
+              {foodIngredients.map((ingredient) => {
                 const food = foodsById.get(ingredient.foodId)
-                const quantityError = errors.quantities[ingredient.foodId]
-                const quantityErrorId = `${ingredientErrorId}-${ingredient.foodId}`
+                const quantityError =
+                  errors.fields[ingredient.foodId]?.quantity
                 return (
                   <div
                     className="recipe-ingredient"
@@ -290,16 +403,9 @@ function RecipeForm({
                         }
                         aria-label={`Quantity for ${food?.name ?? ingredient.foodId}`}
                         aria-invalid={Boolean(quantityError)}
-                        aria-describedby={
-                          quantityError ? quantityErrorId : undefined
-                        }
                       />
                       {quantityError && (
-                        <span
-                          className="field-error"
-                          id={quantityErrorId}
-                          role="alert"
-                        >
+                        <span className="field-error" role="alert">
                           {quantityError}
                         </span>
                       )}
@@ -328,16 +434,59 @@ function RecipeForm({
             }
             placeholder="Add a Food ingredient"
           />
-          {errors.ingredients && (
-            <p
-              className="field-error recipe-ingredient-error"
-              id={ingredientErrorId}
-              role="alert"
-            >
-              {errors.ingredients}
-            </p>
-          )}
         </fieldset>
+
+        <fieldset className="recipe-ingredients">
+          <legend>Recipe-only ingredients</legend>
+          <div className="recipe-only-list">
+            {recipeOnlyIngredients.map((ingredient, index) => (
+              <RecipeOnlyIngredientFields
+                key={ingredient.id}
+                ingredient={ingredient}
+                index={index}
+                errors={errors.fields[ingredient.id] ?? {}}
+                onChange={(updates) =>
+                  onDraftChange(
+                    updateRecipeOnlyIngredient(
+                      draft,
+                      ingredient.id,
+                      updates,
+                    ),
+                  )
+                }
+                onRemove={() =>
+                  onDraftChange(
+                    removeRecipeOnlyIngredient(draft, ingredient.id),
+                  )
+                }
+              />
+            ))}
+          </div>
+          <button
+            className="button button-secondary"
+            type="button"
+            onClick={() =>
+              onDraftChange(
+                addRecipeOnlyIngredient(
+                  draft,
+                  () => `recipe-ingredient-${crypto.randomUUID()}`,
+                ),
+              )
+            }
+          >
+            <Plus size={15} /> Add Recipe-only ingredient
+          </button>
+        </fieldset>
+
+        {errors.ingredients && (
+          <p
+            className="field-error recipe-ingredient-error"
+            id={`${errorId}-ingredients`}
+            role="alert"
+          >
+            {errors.ingredients}
+          </p>
+        )}
       </div>
       <div className="modal-actions">
         <button
@@ -356,5 +505,84 @@ function RecipeForm({
         </button>
       </div>
     </Modal>
+  )
+}
+
+function RecipeOnlyIngredientFields({
+  ingredient,
+  index,
+  errors,
+  onChange,
+  onRemove,
+}: {
+  ingredient: RecipeOnlyIngredient
+  index: number
+  errors: Record<string, string>
+  onChange: (
+    updates: Partial<Omit<RecipeOnlyIngredient, 'kind' | 'id'>>,
+  ) => void
+  onRemove: () => void
+}) {
+  const numericFields = [
+    ['Weight (g)', 'weightGrams'],
+    ['Calories', 'calories'],
+    ['Fat (g)', 'fat'],
+    ['Carbohydrates (g)', 'carbs'],
+    ['Protein (g)', 'protein'],
+    ['Fiber (g)', 'fiber'],
+    ['Sugar (g)', 'sugar'],
+    ['Sodium (mg)', 'sodium'],
+    ['Potassium (mg)', 'potassium'],
+  ] as const
+
+  return (
+    <fieldset className="recipe-only-ingredient">
+      <legend>Recipe-only ingredient {index + 1}</legend>
+      <div className="recipe-only-heading">
+        <label>
+          <span>Name</span>
+          <input
+            value={ingredient.name}
+            onChange={(event) => onChange({ name: event.target.value })}
+            aria-invalid={Boolean(errors.name)}
+          />
+          {errors.name && (
+            <span className="field-error" role="alert">
+              {errors.name}
+            </span>
+          )}
+        </label>
+        <button
+          className="icon-button danger"
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove Recipe-only ingredient ${index + 1}`}
+        >
+          <Trash2 size={15} />
+        </button>
+      </div>
+      <div className="recipe-only-nutrition">
+        {numericFields.map(([label, field]) => (
+          <label key={field}>
+            <span>{label}</span>
+            <input
+              type="number"
+              min={field === 'weightGrams' ? '0.01' : '0'}
+              step="any"
+              value={ingredient[field]}
+              onChange={(event) =>
+                onChange({ [field]: Number(event.target.value) })
+              }
+              aria-invalid={Boolean(errors[field])}
+            />
+            {errors[field] && (
+              <span className="field-error" role="alert">
+                {errors[field]}
+              </span>
+            )}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   )
 }

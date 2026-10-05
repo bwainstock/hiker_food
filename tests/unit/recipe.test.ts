@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
   addFoodIngredient,
+  addRecipeOnlyIngredient,
   createRecipeDraft,
+  filterRecipes,
+  formatRecipeCalories,
+  removeRecipeOnlyIngredient,
   resolveFoodRecipe,
   saveRecipeDraft,
+  updateRecipeOnlyIngredient,
   updateFoodIngredientQuantity,
   validateRecipeDraft,
 } from '../../src/lib/recipe'
+import { recipeIngredientSchema } from '../../src/lib/schemas'
 import type { Recipe } from '../../src/types'
 import { makeFood, makeState } from './fixtures'
 
@@ -20,6 +26,20 @@ describe('Food-based Recipe resolution', () => {
       ingredients: [
         { kind: 'food', foodId: 'food-1', quantity: 1.5 },
         { kind: 'food', foodId: 'food-2', quantity: 2 },
+        {
+          kind: 'recipe-only',
+          id: 'ingredient-1',
+          name: 'Cocoa',
+          weightGrams: 10,
+          calories: 41.4,
+          fat: 1,
+          carbs: 5,
+          protein: 2,
+          fiber: 3,
+          sugar: 1,
+          sodium: 4,
+          potassium: 75,
+        },
       ],
     }
     const foodsById = new Map([
@@ -43,24 +63,24 @@ describe('Food-based Recipe resolution', () => {
     ])
 
     expect(resolveFoodRecipe(recipe, foodsById)).toMatchObject({
-      ingredientCount: 2,
+      ingredientCount: 3,
       complete: true,
       nutrition: {
-        weightOz: 5.5,
-        weightGrams: 142.52425,
-        calories: 550,
-        fat: 23.5,
-        carbs: 75,
-        protein: 18,
-        fiber: 11,
-        sugar: 14.5,
-        sodium: 900,
-        potassium: 450,
+        weightOz: 5.852739907229404,
+        weightGrams: 152.52425,
+        calories: 591.4,
+        fat: 24.5,
+        carbs: 80,
+        protein: 20,
+        fiber: 14,
+        sugar: 15.5,
+        sodium: 904,
+        potassium: 525,
       },
     })
 
     foodsById.set('food-1', makeFood({ calories: 120 }))
-    expect(resolveFoodRecipe(recipe, foodsById).nutrition.calories).toBe(580)
+    expect(resolveFoodRecipe(recipe, foodsById).nutrition.calories).toBe(621.4)
   })
 
   it('merges repeated Food selections into one ingredient', () => {
@@ -138,5 +158,136 @@ describe('Food-based Recipe resolution', () => {
       { id: 'recipe-1', name: 'Dinner' },
       { id: 'recipe-2', name: 'Dinner' },
     ])
+  })
+
+  it('defaults optional Recipe-only nutrition while accepting label calories', () => {
+    expect(
+      recipeIngredientSchema.parse({
+        kind: 'recipe-only',
+        id: 'defaults',
+        name: 'Olive oil',
+        weightGrams: 10,
+        calories: 90,
+        fat: 10,
+        carbs: 0,
+        protein: 0,
+      }),
+    ).toMatchObject({
+      fiber: 0,
+      sugar: 0,
+      sodium: 0,
+      potassium: 0,
+    })
+
+    const draft = addRecipeOnlyIngredient(
+      {
+        ...createRecipeDraft(),
+        name: 'Cocoa oats',
+      },
+      () => 'ingredient-1',
+    )
+    const edited = updateRecipeOnlyIngredient(draft, 'ingredient-1', {
+      name: 'Cocoa',
+      weightGrams: 12,
+      calories: 47,
+      fat: 1,
+      carbs: 7,
+      protein: 2,
+    })
+
+    const result = validateRecipeDraft(edited)
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.ingredients[0]).toEqual({
+      kind: 'recipe-only',
+      id: 'ingredient-1',
+      name: 'Cocoa',
+      weightGrams: 12,
+      calories: 47,
+      fat: 1,
+      carbs: 7,
+      protein: 2,
+      fiber: 0,
+      sugar: 0,
+      sodium: 0,
+      potassium: 0,
+    })
+    expect(formatRecipeCalories(47.5)).toBe('48 kcal')
+  })
+
+  it('keeps same-named Recipe-only ingredients distinct by stable identity', () => {
+    const first = addRecipeOnlyIngredient(createRecipeDraft(), () => 'first')
+    const second = addRecipeOnlyIngredient(first, () => 'second')
+    const named = updateRecipeOnlyIngredient(
+      updateRecipeOnlyIngredient(second, 'first', { name: 'Salt' }),
+      'second',
+      { name: 'Salt' },
+    )
+
+    expect(
+      named.ingredients.flatMap((ingredient) =>
+        ingredient.kind === 'recipe-only' ? [ingredient.id] : [],
+      ),
+    ).toEqual(['first', 'second'])
+    expect(removeRecipeOnlyIngredient(named, 'first').ingredients).toHaveLength(1)
+  })
+
+  it('rejects nested Recipes at the ingredient schema boundary', () => {
+    expect(
+      recipeIngredientSchema.safeParse({
+        kind: 'recipe',
+        recipeId: 'recipe-2',
+        quantity: 1,
+      }).success,
+    ).toBe(false)
+  })
+
+  it('searches remembered Recipe details and combines category filtering', () => {
+    const recipes: Recipe[] = [
+      {
+        id: 'recipe-1',
+        name: 'Morning oats',
+        category: 'Breakfast',
+        instructions: 'Add cold water',
+        ingredients: [
+          { kind: 'food', foodId: 'food-1', quantity: 1 },
+          {
+            kind: 'recipe-only',
+            id: 'ingredient-1',
+            name: 'Cocoa powder',
+            weightGrams: 10,
+            calories: 40,
+            fat: 1,
+            carbs: 5,
+            protein: 2,
+            fiber: 0,
+            sugar: 0,
+            sodium: 0,
+            potassium: 0,
+          },
+        ],
+      },
+      {
+        id: 'recipe-2',
+        name: 'Missing meal',
+        category: 'Dinner',
+        instructions: null,
+        ingredients: [
+          { kind: 'food', foodId: 'unavailable-food-42', quantity: 1 },
+        ],
+      },
+    ]
+    const foodsById = new Map([['food-1', makeFood({ name: 'Rolled Oats' })]])
+
+    expect(filterRecipes(recipes, foodsById, 'CoCoA', null)).toEqual([
+      recipes[0],
+    ])
+    expect(filterRecipes(recipes, foodsById, 'rolled', 'Breakfast')).toEqual([
+      recipes[0],
+    ])
+    expect(
+      filterRecipes(recipes, foodsById, 'UNAVAILABLE-FOOD-42', 'Dinner'),
+    ).toEqual([recipes[1]])
+    expect(filterRecipes(recipes, foodsById, 'water', 'Dinner')).toEqual([])
   })
 })

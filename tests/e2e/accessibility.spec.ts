@@ -34,6 +34,11 @@ test('axe scan on Recipe editor and validation errors', async ({ page }) => {
   await expectNoAxeViolations(page)
   await page.getByRole('button', { name: 'Save Recipe' }).click()
   await expectNoAxeViolations(page)
+  await page
+    .getByRole('button', { name: 'Add Recipe-only ingredient' })
+    .click()
+  await page.getByRole('button', { name: 'Save Recipe' }).click()
+  await expectNoAxeViolations(page)
 })
 
 test('axe scan on data-management modal surfaces', async ({ page }) => {

@@ -45,7 +45,8 @@ _Avoid_: Recipe Food, copied Food
 
 **Recipe-only ingredient**:
 An ingredient that belongs to one Recipe, has its own stable ID, gram weight,
-and nutrition, and does not become a Food.
+and label nutrition, and does not become a Food. Optional detailed nutrition
+values are stored as zero when omitted.
 _Avoid_: Custom Food, manual Food
 
 **Unresolved Plan item**:
