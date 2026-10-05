@@ -26,12 +26,9 @@ import {
   round,
   sodiumLabel,
 } from '../lib/nutrition'
-import {
-  interpretPlanItems,
-  type PlanItemInterpretation,
-} from '../lib/plan-item'
+import type { PlanItemInterpretation } from '../lib/plan-item'
 import { isTenthStepQuantity } from '../lib/schemas'
-import { createDay } from '../lib/planner'
+import { createDay, interpretPlanDays } from '../lib/planner'
 import type {
   DayPlan,
   Food,
@@ -74,29 +71,7 @@ export function PlannerPage({
   const activeDay =
     state.days.find((day) => day.id === activeDayId) ?? state.days[0]
   const interpretationsByDay = useMemo(
-    () => {
-      const interpretations = interpretPlanItems(
-        state.days.flatMap((day) =>
-          MEALS.flatMap((meal) => day.meals[meal]),
-        ),
-        foods,
-        state.recipes,
-      )
-      const interpretationIterator = interpretations.values()
-      return new Map(
-        state.days.map((day) => [
-          day.id,
-          Object.fromEntries(
-            MEALS.map((meal) => [
-              meal,
-              day.meals[meal].map(
-                () => interpretationIterator.next().value!,
-              ),
-            ]),
-          ) as Record<MealName, PlanItemInterpretation[]>,
-        ]),
-      )
-    },
+    () => interpretPlanDays(state.days, foods, state.recipes),
     [state.days, state.recipes, foods],
   )
   const unresolvedItems = useMemo(

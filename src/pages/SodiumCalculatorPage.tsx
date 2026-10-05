@@ -7,7 +7,7 @@ import {
   nutritionForItems,
   round,
 } from '../lib/nutrition'
-import { interpretPlanItems } from '../lib/plan-item'
+import { interpretPlanDays } from '../lib/planner'
 import { calculateSupplementScenario } from '../lib/supplements'
 import type { Food, PlannerState } from '../types'
 import { MEALS } from '../types'
@@ -31,17 +31,8 @@ export function SodiumCalculatorPage({
   const interpretations = useMemo(
     () => {
       if (!day) return []
-      const allInterpretations = interpretPlanItems(
-        MEALS.flatMap((meal) => day.meals[meal]),
-        foods,
-        state.recipes,
-      )
-      const interpretationIterator = allInterpretations.values()
-      return MEALS.map((meal) =>
-        day.meals[meal].map(
-          () => interpretationIterator.next().value!,
-        ),
-      )
+      const grouped = interpretPlanDays([day], foods, state.recipes)
+      return MEALS.map((meal) => grouped.get(day.id)?.[meal] ?? [])
     },
     [day, foods, state.recipes],
   )

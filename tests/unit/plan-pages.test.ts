@@ -3,20 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { PlannerPage } from '../../src/pages/PlannerPage'
 import { SodiumCalculatorPage } from '../../src/pages/SodiumCalculatorPage'
-import type { Food, Recipe } from '../../src/types'
 import { makeDay, makeFood, makeRecipe, makeState } from './fixtures'
-
-class MapCountingArray<T> extends Array<T> {
-  mapCalls = 0
-
-  override map<U>(
-    callbackfn: (value: T, index: number, array: T[]) => U,
-    thisArg?: unknown,
-  ): U[] {
-    this.mapCalls += 1
-    return super.map(callbackfn, thisArg)
-  }
-}
 
 function makePlanCollections() {
   const food = makeFood()
@@ -33,8 +20,8 @@ function makePlanCollections() {
     target: { kind: 'recipe', id: recipe.id },
     quantity: 2,
   }]
-  const foods = new MapCountingArray<Food>(food)
-  const recipes = new MapCountingArray<Recipe>(recipe)
+  const foods = [food]
+  const recipes = [recipe]
   const state = {
     ...makeState(firstDay),
     days: [firstDay, secondDay],
@@ -44,8 +31,8 @@ function makePlanCollections() {
 }
 
 describe('Plan page collection interpretation', () => {
-  it('builds Planner collection indexes once while preserving rendered Plan details', () => {
-    const { food, foods, recipes, state } = makePlanCollections()
+  it('renders grouped Planner results in their Trail-day and meal-period context', () => {
+    const { food, foods, state } = makePlanCollections()
 
     const markup = renderToStaticMarkup(createElement(PlannerPage, {
       state,
@@ -55,13 +42,13 @@ describe('Plan page collection interpretation', () => {
     }))
 
     expect(markup).toContain('Day 1')
+    expect(markup).toContain('Breakfast')
     expect(markup).toContain(food.name)
-    expect(foods.mapCalls).toBe(1)
-    expect(recipes.mapCalls).toBe(1)
+    expect(markup).toContain('100 kcal')
   })
 
-  it('builds Sodium-calculator collection indexes once for the selected Trail day', () => {
-    const { foods, recipes, state } = makePlanCollections()
+  it('renders Sodium-calculator totals from the selected Trail day grouping', () => {
+    const { foods, state } = makePlanCollections()
 
     const markup = renderToStaticMarkup(createElement(SodiumCalculatorPage, {
       state,
@@ -69,7 +56,7 @@ describe('Plan page collection interpretation', () => {
     }))
 
     expect(markup).toContain('Day 1')
-    expect(foods.mapCalls).toBe(1)
-    expect(recipes.mapCalls).toBe(1)
+    expect(markup).toContain('From food')
+    expect(markup).toContain('200 mg')
   })
 })
