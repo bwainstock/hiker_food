@@ -72,6 +72,11 @@ Each nutrient can be complete or incomplete independently; an incomplete
 total shows its known subtotal rather than treating unknown values as zero.
 _Avoid_: Nutrition facts
 
+**Macronutrients**:
+The carbohydrate, fat, and protein Nutrition totals shown for one Trail day.
+Each macronutrient retains its own complete or incomplete status.
+_Avoid_: Macro split
+
 **Electrolyte product**:
 A catalog entry describing the minerals and other listed contents in one
 serving of an electrolyte mix.

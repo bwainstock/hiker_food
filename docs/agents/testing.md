@@ -20,8 +20,9 @@
 The blocking browser suite protects:
 
 1. clean launch and state-only navigation on desktop and mobile;
-2. planning Foods, quantity edits, Trail-day add/duplicate behavior, nutrition
-   totals, Shopping-list aggregation, and reload persistence;
+2. planning Foods, quantity edits, Trail-day add/duplicate behavior, daily
+   carbohydrate/fat/protein totals, Shopping-list aggregation, and reload
+   persistence;
 3. live Recipe ingredient and whole-Recipe nutrition, proportional
    Recipe-only scaling, draft cancellation, persistence, and incomplete
    nutrition across Recipe and Plan surfaces;

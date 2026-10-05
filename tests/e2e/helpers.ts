@@ -15,6 +15,26 @@ import type {
 
 const INIT_MARKER = 'trail-rations-e2e-initialized'
 
+export async function expectMacronutrients(
+  page: Page,
+  expected: {
+    carbohydrates: string
+    fat: string
+    protein: string
+  },
+) {
+  const summary = page.getByRole('article', { name: 'Macronutrients' })
+  await expect(summary).toContainText(
+    new RegExp(`Carbohydrates\\s*${escapeRegExp(expected.carbohydrates)}`),
+  )
+  await expect(summary).toContainText(
+    new RegExp(`Fat\\s*${escapeRegExp(expected.fat)}`),
+  )
+  await expect(summary).toContainText(
+    new RegExp(`Protein\\s*${escapeRegExp(expected.protein)}`),
+  )
+}
+
 export function fixedDay(
   id = 'day-1',
   name = 'Day 1',
@@ -136,6 +156,10 @@ export async function launchClean(page: Page) {
     { marker: INIT_MARKER },
   )
   await page.goto('/')
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 export async function navigateTo(page: Page, name: string) {

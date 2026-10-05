@@ -461,6 +461,37 @@
   font-size: 10px;
 }
 
+.macro-stat-card {
+  justify-content: space-between;
+}
+
+.macro-breakdown {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 10px 0 0;
+}
+
+.macro-breakdown div {
+  min-width: 0;
+}
+
+.macro-breakdown dt {
+  overflow: hidden;
+  color: #8a948f;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.macro-breakdown dd {
+  margin: 3px 0 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 750;
+  line-height: 1.15;
+}
+
 /* Planner */
 
 .planner-stack,

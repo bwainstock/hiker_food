@@ -3,6 +3,7 @@ import { expect, test } from './fixtures'
 import {
   addFood,
   emptyState,
+  expectMacronutrients,
   fixedDay,
   launchClean,
   launchWithState,
@@ -198,11 +199,26 @@ test('Plan totals, Trail days, Shopping list, and persistence @smoke', async ({
   await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
     '420 kcal',
   )
+  await expectMacronutrients(page, {
+    carbohydrates: '12 g',
+    fat: '36 g',
+    protein: '14 g',
+  })
 
   await page.getByRole('button', { name: 'Duplicate' }).click()
   await expect(page.getByText('840 kcal', { exact: true })).toBeVisible()
+  await expectMacronutrients(page, {
+    carbohydrates: '12 g',
+    fat: '36 g',
+    protein: '14 g',
+  })
   await page.getByRole('button', { name: 'Day', exact: true }).click()
   await expect(page.getByText('3 trail days')).toBeVisible()
+  await expectMacronutrients(page, {
+    carbohydrates: '0 g',
+    fat: '0 g',
+    protein: '0 g',
+  })
 
   await navigateTo(page, 'Shopping list')
   await expect(
