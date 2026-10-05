@@ -29,12 +29,20 @@ export function SodiumCalculatorPage({
   const day =
     state.days.find((candidate) => candidate.id === dayId) ?? state.days[0]
   const interpretations = useMemo(
-    () =>
-      day
-        ? MEALS.map((meal) =>
-          interpretPlanItems(day.meals[meal], foods, state.recipes),
-        )
-        : [],
+    () => {
+      if (!day) return []
+      const allInterpretations = interpretPlanItems(
+        MEALS.flatMap((meal) => day.meals[meal]),
+        foods,
+        state.recipes,
+      )
+      const interpretationIterator = allInterpretations.values()
+      return MEALS.map((meal) =>
+        day.meals[meal].map(
+          () => interpretationIterator.next().value!,
+        ),
+      )
+    },
     [day, foods, state.recipes],
   )
   const diet = useMemo(

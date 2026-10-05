@@ -74,18 +74,29 @@ export function PlannerPage({
   const activeDay =
     state.days.find((day) => day.id === activeDayId) ?? state.days[0]
   const interpretationsByDay = useMemo(
-    () =>
-      new Map(
+    () => {
+      const interpretations = interpretPlanItems(
+        state.days.flatMap((day) =>
+          MEALS.flatMap((meal) => day.meals[meal]),
+        ),
+        foods,
+        state.recipes,
+      )
+      const interpretationIterator = interpretations.values()
+      return new Map(
         state.days.map((day) => [
           day.id,
           Object.fromEntries(
             MEALS.map((meal) => [
               meal,
-              interpretPlanItems(day.meals[meal], foods, state.recipes),
+              day.meals[meal].map(
+                () => interpretationIterator.next().value!,
+              ),
             ]),
           ) as Record<MealName, PlanItemInterpretation[]>,
         ]),
-      ),
+      )
+    },
     [state.days, state.recipes, foods],
   )
   const unresolvedItems = useMemo(
