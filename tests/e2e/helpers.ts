@@ -21,7 +21,7 @@ export function emptyState(
   day = fixedDay(),
   customFoods: Food[] = [],
 ): PlannerState {
-  return { days: [day], customFoods }
+  return { days: [day], customFoods, recipes: [] }
 }
 
 export async function launchWithState(page: Page, state: PlannerState) {
@@ -37,7 +37,7 @@ export async function launchWithState(page: Page, state: PlannerState) {
       marker: INIT_MARKER,
       currentKey: PLANNER_STORAGE_KEY,
       previousKey: PREVIOUS_STATE_STORAGE_KEY,
-      serialized: JSON.stringify({ schemaVersion: 1, state }),
+      serialized: JSON.stringify({ schemaVersion: 2, state }),
     },
   )
   await page.goto('/')

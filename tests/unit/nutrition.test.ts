@@ -48,8 +48,16 @@ describe('nutrition calculations', () => {
     const foods = new Map([['known', makeFood({ id: 'known' })]])
     const total = nutritionForItems(
       [
-        { id: 'item-1', foodId: 'known', quantity: 2 },
-        { id: 'item-2', foodId: 'missing', quantity: 9 },
+        {
+          id: 'item-1',
+          target: { kind: 'food', id: 'known' },
+          quantity: 2,
+        },
+        {
+          id: 'item-2',
+          target: { kind: 'food', id: 'missing' },
+          quantity: 9,
+        },
       ],
       foods,
     )

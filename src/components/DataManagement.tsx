@@ -23,7 +23,7 @@ type Dialog =
       type: 'import-preview'
       target: PlannerState
       filename: string
-      source: 'legacy-v0' | 'v1'
+      source: 'legacy-v0' | 'v1' | 'v2'
     }
   | {
       type: 'import-error'
@@ -59,8 +59,20 @@ function Preview({
         <dd>{preview.customFoods}</dd>
       </div>
       <div>
+        <dt>Recipes</dt>
+        <dd>{preview.recipes}</dd>
+      </div>
+      <div>
         <dt>Unresolved items</dt>
         <dd>{preview.unresolvedItems}</dd>
+      </div>
+      <div>
+        <dt>Incomplete Recipes</dt>
+        <dd>{preview.incompleteRecipes}</dd>
+      </div>
+      <div>
+        <dt>Unavailable Recipe ingredients</dt>
+        <dd>{preview.unresolvedRecipeIngredients}</dd>
       </div>
     </dl>
   )
@@ -91,7 +103,7 @@ export function DataManagement({
   const exportCurrent = () => {
     downloadText(
       serializePlannerState(state),
-      'trail-rations-backup-v1.json',
+      'trail-rations-backup-v2.json',
     )
   }
 
@@ -216,9 +228,11 @@ export function DataManagement({
           <div className="modal-content">
             <p>
               <strong>{dialog.filename}</strong> is a{' '}
-              {dialog.source === 'v1'
-                ? 'version 1 backup'
-                : 'legacy unversioned PlannerState'}
+              {dialog.source === 'v2'
+                ? 'version 2 backup'
+                : dialog.source === 'v1'
+                  ? 'version 1 backup'
+                  : 'legacy unversioned PlannerState'}
               . Import replaces, rather than merges with, the current Plan. The
               current valid state becomes the one previous valid state.
             </p>

@@ -40,8 +40,12 @@ export function SodiumCalculatorPage({
     () =>
       day
         ? MEALS.flatMap((meal) =>
-            day.meals[meal].filter((item) => !foodsById.has(item.foodId)),
-          )
+          day.meals[meal].filter(
+            (item) =>
+              item.target.kind === 'food' &&
+              !foodsById.has(item.target.id),
+          ),
+        )
         : [],
     [day, foodsById],
   )

@@ -6,9 +6,9 @@
   style, hook, type, and bundling failures. The Cloudflare configuration check
   verifies the static-assets, SPA fallback, and preview contracts, then runs a
   Wrangler dry run.
-- **Fast tests**: Vitest covers deterministic domain rules, schemas, catalog
-  contracts, parsing, aggregation, calculations, and pure search/filter/sort
-  behavior.
+- **Fast tests**: Vitest covers deterministic domain rules, Recipe and Plan
+  schemas, catalog contracts, version migration, parsing, aggregation,
+  calculations, and pure search/filter/sort behavior.
 - **Browser smoke**: Playwright runs the shortest critical journeys in Chromium
   desktop and one representative mobile viewport against the built Vite preview.
 - **Full browser regression**: Playwright adds data recovery, import/export,

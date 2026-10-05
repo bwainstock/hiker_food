@@ -42,7 +42,7 @@ test('axe scan on data-management modal surfaces', async ({ page }) => {
     .click()
 
   const backup = JSON.stringify({
-    schemaVersion: 1,
+    schemaVersion: 2,
     state: emptyState(),
   })
   await selectImportFile(page, {
@@ -113,7 +113,7 @@ test('axe scan on in-use custom-Food delete confirmation', async ({ page }) => {
   const state = emptyState(undefined, [custom])
   state.days[0].meals.Dinner.push({
     id: 'accessible-item',
-    foodId: custom.id,
+    target: { kind: 'food', id: custom.id },
     quantity: 1,
   })
   await launchWithState(page, state)

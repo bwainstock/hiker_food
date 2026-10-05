@@ -57,7 +57,8 @@ export function nutritionForItems(
 ): Nutrition {
   return addNutrition(
     ...items.flatMap((item) => {
-      const food = foodsById.get(item.foodId)
+      if (item.target.kind !== 'food') return []
+      const food = foodsById.get(item.target.id)
       return food ? [nutritionForFood(food, item.quantity)] : []
     }),
   )

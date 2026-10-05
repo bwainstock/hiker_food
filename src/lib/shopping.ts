@@ -27,7 +27,8 @@ export function aggregateShoppingList(
   state.days.forEach((day) => {
     MEALS.forEach((meal) => {
       day.meals[meal].forEach((item) => {
-        const current = quantities.get(item.foodId) ?? {
+        if (item.target.kind !== 'food') return
+        const current = quantities.get(item.target.id) ?? {
           quantity: 0,
           itemCount: 0,
           locations: [],
@@ -35,7 +36,7 @@ export function aggregateShoppingList(
         current.quantity += item.quantity
         current.itemCount += 1
         current.locations.push(`${day.name} · ${meal}`)
-        quantities.set(item.foodId, current)
+        quantities.set(item.target.id, current)
       })
     })
   })
