@@ -1,6 +1,11 @@
-import type { Food, PlannerState } from '../types'
+import type {
+  Food,
+  PlannerState,
+  RecipeOnlyIngredient,
+} from '../types'
 import { MEALS } from '../types'
 import { EN_US_COLLATOR } from './catalog'
+import { resolveFoodRecipe } from './recipe'
 
 export interface ShoppingRow {
   food: Food
@@ -15,6 +20,18 @@ export interface UnresolvedShoppingRow {
   locations: string[]
 }
 
+export interface RecipeOnlyShoppingRow {
+  recipeId: string
+  ingredientId: string
+  name: string
+  sourceRecipe: string
+  placementQuantity: number
+  itemCount: number
+  weightGrams: number
+  calories: number
+  ingredient: RecipeOnlyIngredient
+}
+
 export function aggregateShoppingList(
   state: PlannerState,
   foodsById: ReadonlyMap<string, Food>,
@@ -23,20 +40,61 @@ export function aggregateShoppingList(
     string,
     { quantity: number; itemCount: number; locations: string[] }
   >()
+  const recipeOnly = new Map<
+    string,
+    Omit<RecipeOnlyShoppingRow, 'weightGrams' | 'calories'>
+  >()
+  const recipesById = new Map(state.recipes.map((recipe) => [recipe.id, recipe]))
+
+  const addFoodContribution = (
+    foodId: string,
+    quantity: number,
+    location: string,
+  ) => {
+    const current = quantities.get(foodId) ?? {
+      quantity: 0,
+      itemCount: 0,
+      locations: [],
+    }
+    current.quantity += quantity
+    current.itemCount += 1
+    current.locations.push(location)
+    quantities.set(foodId, current)
+  }
 
   state.days.forEach((day) => {
     MEALS.forEach((meal) => {
       day.meals[meal].forEach((item) => {
-        if (item.target.kind !== 'food') return
-        const current = quantities.get(item.target.id) ?? {
-          quantity: 0,
-          itemCount: 0,
-          locations: [],
+        const location = `${day.name} · ${meal}`
+        if (item.target.kind === 'food') {
+          addFoodContribution(item.target.id, item.quantity, location)
+          return
         }
-        current.quantity += item.quantity
-        current.itemCount += 1
-        current.locations.push(`${day.name} · ${meal}`)
-        quantities.set(item.target.id, current)
+        const recipe = recipesById.get(item.target.id)
+        if (!recipe) return
+        const resolved = resolveFoodRecipe(recipe, foodsById)
+        resolved.foodContributions.forEach((ingredient) =>
+          addFoodContribution(
+            ingredient.foodId,
+            ingredient.quantity * item.quantity,
+            `${location} · ${recipe.name}`,
+          ),
+        )
+        resolved.recipeOnlyContributions.forEach((ingredient) => {
+          const key = `${recipe.id}:${ingredient.id}`
+          const current = recipeOnly.get(key) ?? {
+            recipeId: recipe.id,
+            ingredientId: ingredient.id,
+            name: ingredient.name,
+            sourceRecipe: recipe.name,
+            placementQuantity: 0,
+            itemCount: 0,
+            ingredient,
+          }
+          current.placementQuantity += item.quantity
+          current.itemCount += 1
+          recipeOnly.set(key, current)
+        })
       })
     })
   })
@@ -63,6 +121,18 @@ export function aggregateShoppingList(
       EN_US_COLLATOR.compare(a.food.id, b.food.id),
   )
   unresolved.sort((a, b) => EN_US_COLLATOR.compare(a.foodId, b.foodId))
+  const recipeOnlyRows = [...recipeOnly.values()]
+    .map((row) => ({
+      ...row,
+      weightGrams: row.ingredient.weightGrams * row.placementQuantity,
+      calories: row.ingredient.calories * row.placementQuantity,
+    }))
+    .sort(
+      (a, b) =>
+        EN_US_COLLATOR.compare(a.sourceRecipe, b.sourceRecipe) ||
+        EN_US_COLLATOR.compare(a.name, b.name) ||
+        EN_US_COLLATOR.compare(a.ingredientId, b.ingredientId),
+    )
 
-  return { rows, unresolved }
+  return { rows, recipeOnlyRows, unresolved }
 }

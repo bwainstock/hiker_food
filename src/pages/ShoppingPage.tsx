@@ -15,6 +15,10 @@ import {
   nutritionForFood,
   round,
 } from '../lib/nutrition'
+import {
+  nutritionForRecipeOnlyIngredient,
+  scaleNutrition,
+} from '../lib/recipe'
 import { aggregateShoppingList } from '../lib/shopping'
 import {
   removeFoodReferences,
@@ -40,18 +44,29 @@ export function ShoppingPage({
   const [packed, setPacked] = useState<Set<string>>(new Set())
   const [replacingFoodId, setReplacingFoodId] = useState<string | null>(null)
 
-  const { rows, unresolved } = useMemo(
+  const { rows, recipeOnlyRows, unresolved } = useMemo(
     () => aggregateShoppingList(state, foodsById),
     [state, foodsById],
   )
 
   const total = addNutrition(
     ...rows.map(({ food, quantity }) => nutritionForFood(food, quantity)),
+    ...recipeOnlyRows.map((row) =>
+      scaleNutrition(
+        nutritionForRecipeOnlyIngredient(row.ingredient),
+        row.placementQuantity,
+      ),
+    ),
   )
   const categories = new Set(rows.map(({ food }) => food.category)).size
-  const packedCount = rows.filter(({ food }) => packed.has(food.id)).length
+  const totalRows = rows.length + recipeOnlyRows.length
+  const packedCount =
+    rows.filter(({ food }) => packed.has(`food:${food.id}`)).length +
+    recipeOnlyRows.filter((row) =>
+      packed.has(`recipe-only:${row.recipeId}:${row.ingredientId}`),
+    ).length
 
-  if (rows.length === 0 && unresolved.length === 0) {
+  if (totalRows === 0 && unresolved.length === 0) {
     return (
       <EmptyState
         icon={<ShoppingBag />}
@@ -66,7 +81,7 @@ export function ShoppingPage({
       <section className="stat-grid stat-grid-three print-totals">
         <StatCard
           label="Available foods"
-          value={rows.length.toString()}
+          value={totalRows.toString()}
           detail={
             unresolved.length
               ? `${unresolved.length} unavailable reference${unresolved.length === 1 ? '' : 's'}`
@@ -82,9 +97,9 @@ export function ShoppingPage({
         />
         <StatCard
           label="Packed"
-          value={`${packedCount} / ${rows.length}`}
+          value={`${packedCount} / ${totalRows}`}
           detail={`${round(
-            rows.length ? (packedCount / rows.length) * 100 : 0,
+            totalRows ? (packedCount / totalRows) * 100 : 0,
           )}% complete`}
           accent="#e56f35"
         />
@@ -117,7 +132,8 @@ export function ShoppingPage({
         </div>
         <div className="shopping-list">
           {rows.map(({ food, quantity }) => {
-            const isPacked = packed.has(food.id)
+            const packedId = `food:${food.id}`
+            const isPacked = packed.has(packedId)
             return (
               <button
                 className={`shopping-row ${isPacked ? 'packed' : ''}`}
@@ -127,8 +143,8 @@ export function ShoppingPage({
                 onClick={() =>
                   setPacked((current) => {
                     const next = new Set(current)
-                    if (next.has(food.id)) next.delete(food.id)
-                    else next.add(food.id)
+                    if (next.has(packedId)) next.delete(packedId)
+                    else next.add(packedId)
                     return next
                   })
                 }
@@ -150,6 +166,41 @@ export function ShoppingPage({
                 <span className="shopping-quantity">
                   <strong>{round(quantity, 1)}</strong>
                   <small>servings</small>
+                </span>
+              </button>
+            )
+          })}
+          {recipeOnlyRows.map((row) => {
+            const packedId =
+              `recipe-only:${row.recipeId}:${row.ingredientId}`
+            const isPacked = packed.has(packedId)
+            return (
+              <button
+                className={`shopping-row ${isPacked ? 'packed' : ''}`}
+                type="button"
+                key={packedId}
+                aria-pressed={isPacked}
+                onClick={() =>
+                  setPacked((current) => {
+                    const next = new Set(current)
+                    if (next.has(packedId)) next.delete(packedId)
+                    else next.add(packedId)
+                    return next
+                  })
+                }
+              >
+                <span className="check-box">{isPacked && <Check size={15} />}</span>
+                <span className="shopping-name">
+                  <strong>{row.name}</strong>
+                  <small>
+                    Recipe-only · From {row.sourceRecipe} ·{' '}
+                    {round(row.weightGrams, 1)} g · {round(row.calories)} kcal
+                  </small>
+                </span>
+                <Badge tone="amber">Recipe-only</Badge>
+                <span className="shopping-quantity">
+                  <strong>{round(row.placementQuantity, 1)}</strong>
+                  <small>Recipe servings</small>
                 </span>
               </button>
             )

@@ -7,6 +7,7 @@ import {
   launchClean,
   launchWithState,
   navigateTo,
+  stateWithRecipe,
 } from './helpers'
 
 test('clean launch and desktop screen navigation @smoke', async ({ page }) => {
@@ -147,6 +148,7 @@ test('Plan totals, Trail days, Shopping list, and persistence @smoke', async ({
   const quantity = page.getByRole('spinbutton', {
     name: "Quantity for Justin's Classic Peanut Butter",
   })
+
   await quantity.fill('2')
   await quantity.press('Tab')
   await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
@@ -168,6 +170,47 @@ test('Plan totals, Trail days, Shopping list, and persistence @smoke', async ({
   await page.reload()
   await expect(page.getByText('3 trail days')).toBeVisible()
   await expect(page.getByText('840 kcal', { exact: true })).toBeVisible()
+})
+
+test('Recipe planning, Shopping expansion, and persistence @smoke', async ({
+  page,
+}) => {
+  await launchWithState(page, stateWithRecipe())
+  const dinner = page.getByRole('article', { name: 'Dinner' })
+  const picker = dinner.getByRole('combobox')
+  await picker.fill('Trail bowl')
+  await dinner.getByRole('option', { name: /Trail bowl.*Recipe/ }).click()
+  await expect(dinner).toContainText('Recipe · 250 kcal')
+  await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
+    '250 kcal',
+  )
+
+  const quantity = dinner.getByRole('spinbutton', {
+    name: 'Quantity for Trail bowl',
+  })
+  await quantity.fill('2')
+  await quantity.press('Tab')
+  await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
+    '500 kcal',
+  )
+
+  await navigateTo(page, 'Shopping list')
+  await expect(
+    page.getByRole('button', {
+      name: /Justin's Classic Peanut Butter.*2.*servings/,
+    }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', {
+      name: /Cocoa powder.*From Trail bowl.*20 g/,
+    }),
+  ).toBeVisible()
+
+  await page.reload()
+  await navigateTo(page, 'Meal planner')
+  await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
+    '500 kcal',
+  )
 })
 
 test('custom Food creation and in-use deletion safety @smoke', async ({

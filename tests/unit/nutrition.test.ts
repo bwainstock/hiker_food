@@ -6,6 +6,7 @@ import {
   fatLabel,
   nutritionForFood,
   nutritionForItems,
+  resolvePlanItem,
   ratioLabel,
   sodiumLabel,
 } from '../../src/lib/nutrition'
@@ -13,7 +14,12 @@ import {
   calculateElectrolyteTargets,
   calculateSupplementScenario,
 } from '../../src/lib/supplements'
-import { makeElectrolyte, makeFood, makeNutrition } from './fixtures'
+import {
+  makeElectrolyte,
+  makeFood,
+  makeNutrition,
+  makeRecipe,
+} from './fixtures'
 
 describe('nutrition calculations', () => {
   it('scales Food nutrition by a serving multiplier', () => {
@@ -63,6 +69,91 @@ describe('nutrition calculations', () => {
     )
     expect(total.calories).toBe(200)
     expect(addNutrition(total, total).calories).toBe(400)
+  })
+
+  it('resolves and scales Food and Recipe Plan-item targets through one seam', () => {
+    const food = makeFood()
+    const recipe = makeRecipe()
+    const foods = new Map([[food.id, food]])
+    const recipes = new Map([[recipe.id, recipe]])
+
+    expect(
+      resolvePlanItem(
+        {
+          id: 'recipe-placement',
+          target: { kind: 'recipe', id: recipe.id },
+          quantity: 2,
+        },
+        foods,
+        recipes,
+      ),
+    ).toMatchObject({
+      kind: 'recipe',
+      label: 'Trail bowl',
+      complete: true,
+      nutrition: {
+        calories: 340,
+        sodium: 700,
+      },
+    })
+    expect(
+      resolvePlanItem(
+        {
+          id: 'recipe-placement',
+          target: { kind: 'recipe', id: recipe.id },
+          quantity: 2,
+        },
+        foods,
+        recipes,
+      )?.nutrition.weightGrams,
+    ).toBeCloseTo(105.0485)
+
+    expect(
+      nutritionForItems(
+        [
+          {
+            id: 'food-placement',
+            target: { kind: 'food', id: food.id },
+            quantity: 1,
+          },
+          {
+            id: 'recipe-placement',
+            target: { kind: 'recipe', id: recipe.id },
+            quantity: 2,
+          },
+        ],
+        foods,
+        recipes,
+      ).calories,
+    ).toBe(440)
+  })
+
+  it('uses saved Recipe edits for existing Plan-item projections', () => {
+    const food = makeFood()
+    const item = {
+      id: 'recipe-placement',
+      target: { kind: 'recipe' as const, id: 'recipe-1' },
+      quantity: 2,
+    }
+    const before = makeRecipe()
+    const after = makeRecipe({
+      ingredients: [{ kind: 'food', foodId: food.id, quantity: 2 }],
+    })
+
+    expect(
+      nutritionForItems(
+        [item],
+        new Map([[food.id, food]]),
+        new Map([[before.id, before]]),
+      ).calories,
+    ).toBe(340)
+    expect(
+      nutritionForItems(
+        [item],
+        new Map([[food.id, food]]),
+        new Map([[after.id, after]]),
+      ).calories,
+    ).toBe(400)
   })
 
   it('keeps derived metrics finite for unsafe partial input', () => {
