@@ -515,6 +515,61 @@ describe('backup compatibility', () => {
     })
   })
 
+  it('exactly round-trips typed placements, optional Recipe values, and unavailable Food references', () => {
+    const state = makeState()
+    state.recipes.push({
+      id: 'recipe-mixed',
+      name: 'Mixed trail bowl',
+      category: null,
+      instructions: '',
+      ingredients: [
+        {
+          kind: 'food',
+          foodId: 'food-no-longer-available',
+          quantity: 1.2,
+        },
+        {
+          kind: 'recipe-only',
+          id: 'ingredient-seasoning',
+          name: 'Seasoning',
+          weightGrams: 3,
+          calories: 0,
+          fat: 0,
+          carbs: 0,
+          protein: 0,
+          fiber: 0,
+          sugar: 0,
+          sodium: 325,
+          potassium: 0,
+        },
+      ],
+    })
+    state.days[0].meals.Dinner.push(
+      {
+        id: 'placed-recipe',
+        target: { kind: 'recipe', id: 'recipe-mixed' },
+        quantity: 2.3,
+      },
+      {
+        id: 'unavailable-food',
+        target: { kind: 'food', id: 'food-no-longer-available' },
+        quantity: 0.4,
+      },
+    )
+
+    const serialized = serializePlannerState(state)
+
+    expect(JSON.parse(serialized)).toEqual({
+      schemaVersion: 2,
+      state,
+    })
+    expect(parsePlannerStateText(serialized)).toEqual({
+      ok: true,
+      source: 'v2',
+      state,
+    })
+  })
+
   it('preserves legacy custom Foods with nullable labels and zero serving weight', () => {
     const legacyFood = makeFood({
       id: 'custom-legacy-zero-weight',
@@ -580,13 +635,35 @@ describe('backup compatibility', () => {
   })
 
   it('rejects unsupported future versions', () => {
-    const result = parsePlannerStateText(
-      JSON.stringify({ schemaVersion: 3, state: makeState() }),
-    )
+    const raw = JSON.stringify({ schemaVersion: 3, state: makeState() })
+    const result = parsePlannerStateText(raw)
     expect(result).toMatchObject({
       ok: false,
       kind: 'unsupported-version',
+      raw,
     })
+  })
+
+  it('reports an actionable path for an unavailable Recipe target', () => {
+    const state = makeState()
+    state.days[0].meals.Dinner.push({
+      id: 'missing-recipe',
+      target: { kind: 'recipe', id: 'recipe-missing' },
+      quantity: 1,
+    })
+    const raw = JSON.stringify({ schemaVersion: 2, state })
+    const result = parsePlannerStateText(raw)
+
+    expect(result).toMatchObject({
+      ok: false,
+      kind: 'invalid-state',
+      raw,
+    })
+    if (!result.ok) {
+      expect(result.errors).toContain(
+        'state.days[0].meals.Dinner[0].target.id: Recipe target "recipe-missing" is not available.',
+      )
+    }
   })
 
   it('previews unresolved counts against the available catalog', () => {

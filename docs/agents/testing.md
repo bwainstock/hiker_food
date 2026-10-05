@@ -24,8 +24,9 @@ The blocking browser suite protects:
    totals, Shopping-list aggregation, and reload persistence;
 3. custom-Food creation, use, validation, and safe in-use deletion;
 4. a known sodium/potassium supplement scenario;
-5. final-Trail-day, reset, previous-valid-state, import, export, and malformed
-   startup recovery contracts;
+5. final-Trail-day, schema-version-2 Recipe-aware export/import, legacy and
+   version-1 migration, reset, previous-valid-state, invalid/future backup
+   rejection, and malformed-startup recovery contracts;
 6. unresolved Plan-item visibility, incomplete totals, replacement, and removal;
 7. Food and electrolyte search/filter/sort behavior;
 8. print invocation and print-media semantics;
