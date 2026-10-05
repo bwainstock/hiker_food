@@ -1,5 +1,10 @@
 import { expect, test } from './fixtures'
-import { launchClean, launchWithState, stateWithRecipe } from './helpers'
+import {
+  expectMacronutrients,
+  launchClean,
+  launchWithState,
+  stateWithRecipe,
+} from './helpers'
 
 test('mobile navigation at a representative small viewport @smoke', async ({
   page,
@@ -28,6 +33,11 @@ test('mobile Recipe planning and Shopping persistence @smoke', async ({
   await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
     '250 kcal',
   )
+  await expectMacronutrients(page, {
+    carbohydrates: '11 g',
+    fat: '19 g',
+    protein: '9 g',
+  })
 
   await page.getByRole('button', { name: 'Open navigation' }).click()
   await page.getByRole('button', { name: /^Shopping list/ }).click()

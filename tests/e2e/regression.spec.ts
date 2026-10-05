@@ -7,6 +7,7 @@ import {
 import { expect, test } from './fixtures'
 import {
   emptyState,
+  expectMacronutrients,
   fixedDay,
   launchWithRawState,
   launchWithState,
@@ -191,9 +192,11 @@ test('unknown Recipe nutrients stay marked across Recipe and Plan totals', async
 
   await launchWithState(page, state)
   await expect(page.getByText('Nutrition totals are incomplete.')).toBeVisible()
-  await expect(page.getByRole('article', { name: 'Protein' })).toContainText(
-    'g known',
-  )
+  await expectMacronutrients(page, {
+    carbohydrates: '22 g',
+    fat: '38 g',
+    protein: '14 g known',
+  })
 
   await navigateTo(page, 'Recipes')
   const recipe = page.getByRole('article', { name: 'Trail bowl' })

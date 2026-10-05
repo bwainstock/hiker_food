@@ -298,18 +298,42 @@ export function PlannerPage({
           )}
           accent="#227b62"
         />
-        <StatCard
-          label="Protein"
-          value={formatKnownNutritionValue(
-            `${round(dayNutrition.nutrition.protein, 1)} g`,
-            dayNutrition.known.protein,
-          )}
-          detail={formatKnownNutritionValue(
-            `${round(dayNutrition.nutrition.carbs, 1)} g carbohydrates`,
-            dayNutrition.known.carbs,
-          )}
-          accent="#4779b8"
-        />
+        <article
+          className="stat-card macro-stat-card"
+          aria-label="Macronutrients"
+          style={{ '--stat-accent': '#4779b8' } as never}
+        >
+          <span>Macronutrients</span>
+          <dl className="macro-breakdown">
+            <div>
+              <dt>Carbohydrates</dt>
+              <dd>
+                {formatKnownNutritionValue(
+                  `${round(dayNutrition.nutrition.carbs, 1)} g`,
+                  dayNutrition.known.carbs,
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Fat</dt>
+              <dd>
+                {formatKnownNutritionValue(
+                  `${round(dayNutrition.nutrition.fat, 1)} g`,
+                  dayNutrition.known.fat,
+                )}
+              </dd>
+            </div>
+            <div>
+              <dt>Protein</dt>
+              <dd>
+                {formatKnownNutritionValue(
+                  `${round(dayNutrition.nutrition.protein, 1)} g`,
+                  dayNutrition.known.protein,
+                )}
+              </dd>
+            </div>
+          </dl>
+        </article>
         <StatCard
           label="Sodium"
           value={formatKnownNutritionValue(
