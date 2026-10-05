@@ -26,10 +26,12 @@ import {
   round,
   sodiumLabel,
 } from '../lib/nutrition'
-import { resolvePlanItem } from '../lib/recipe'
+import {
+  interpretPlanItems,
+  type PlanItemInterpretation,
+} from '../lib/plan-item'
 import { isTenthStepQuantity } from '../lib/schemas'
 import { createDay } from '../lib/planner'
-import { findUnresolvedPlanItems } from '../lib/state'
 import type {
   DayPlan,
   Food,
@@ -37,7 +39,6 @@ import type {
   PlanItem,
   PlannerState,
   PlannerStateUpdater,
-  Recipe,
 } from '../types'
 import { MEALS } from '../types'
 
@@ -59,13 +60,11 @@ export function PlannerPage({
   setState,
   foods,
   foodsById,
-  recipesById,
 }: {
   state: PlannerState
   setState: PlannerStateUpdater
   foods: Food[]
   foodsById: Map<string, Food>
-  recipesById: Map<string, Recipe>
 }) {
   const [activeDayId, setActiveDayId] = useState(state.days[0]?.id ?? '')
   const [expandedMeals, setExpandedMeals] = useState<Set<MealName>>(
@@ -74,9 +73,36 @@ export function PlannerPage({
 
   const activeDay =
     state.days.find((day) => day.id === activeDayId) ?? state.days[0]
+  const interpretationsByDay = useMemo(
+    () =>
+      new Map(
+        state.days.map((day) => [
+          day.id,
+          Object.fromEntries(
+            MEALS.map((meal) => [
+              meal,
+              interpretPlanItems(day.meals[meal], foods, state.recipes),
+            ]),
+          ) as Record<MealName, PlanItemInterpretation[]>,
+        ]),
+      ),
+    [state.days, state.recipes, foods],
+  )
   const unresolvedItems = useMemo(
-    () => findUnresolvedPlanItems(state, foodsById, recipesById),
-    [state, foodsById, recipesById],
+    () =>
+      state.days.flatMap((day) =>
+        MEALS.flatMap((meal) =>
+          (interpretationsByDay.get(day.id)?.[meal] ?? []).flatMap(
+            (interpretation) =>
+              !interpretation.available ||
+              (interpretation.target.kind === 'recipe' &&
+                !interpretation.complete)
+                ? [{ dayId: day.id, meal }]
+                : [],
+          ),
+        ),
+      ),
+    [state.days, interpretationsByDay],
   )
   const activeDayUnresolved = activeDay
     ? unresolvedItems.filter((item) => item.dayId === activeDay.id)
@@ -87,13 +113,11 @@ export function PlannerPage({
     return addNutritionSummaries(
       ...MEALS.map((meal) =>
         nutritionSummaryForItems(
-          activeDay.meals[meal],
-          foodsById,
-          recipesById,
+          interpretationsByDay.get(activeDay.id)?.[meal] ?? [],
         ),
       ),
     )
-  }, [activeDay, foodsById, recipesById])
+  }, [activeDay, interpretationsByDay])
 
   const tripNutrition = useMemo(
     () =>
@@ -101,14 +125,12 @@ export function PlannerPage({
         ...state.days.flatMap((day) =>
           MEALS.map((meal) =>
             nutritionSummaryForItems(
-              day.meals[meal],
-              foodsById,
-              recipesById,
+              interpretationsByDay.get(day.id)?.[meal] ?? [],
             ),
           ),
         ),
       ),
-    [state.days, foodsById, recipesById],
+    [state.days, interpretationsByDay],
   )
 
   const updateDay = (updater: (day: DayPlan) => DayPlan) => {
@@ -358,14 +380,12 @@ export function PlannerPage({
         <section className="meal-list">
           {MEALS.map((meal) => {
             const mealItems = activeDay.meals[meal]
+            const mealInterpretations =
+              interpretationsByDay.get(activeDay.id)?.[meal] ?? []
             const mealIncomplete = activeDayUnresolved.some(
               (item) => item.meal === meal,
             )
-            const nutrition = nutritionSummaryForItems(
-              mealItems,
-              foodsById,
-              recipesById,
-            )
+            const nutrition = nutritionSummaryForItems(mealInterpretations)
             const isExpanded = expandedMeals.has(meal)
             return (
               <article className="meal-card" key={meal} aria-label={meal}>
@@ -418,17 +438,12 @@ export function PlannerPage({
                       <p className="meal-tip">{MEAL_TIPS[meal]}</p>
                     )}
                     <div className="meal-items">
-                      {mealItems.map((item) => {
-                        const resolved = resolvePlanItem(
-                          item,
-                          foodsById,
-                          recipesById,
-                        )
+                      {mealItems.map((item, index) => {
                         return (
                           <MealPlanItem
                             key={`${item.id}:${item.quantity}`}
                             item={item}
-                            resolved={resolved}
+                            interpretation={mealInterpretations[index]}
                             foods={foods}
                             onQuantity={(quantity) =>
                               updateDay((day) => ({
@@ -588,14 +603,14 @@ export function PlannerPage({
 
 function MealPlanItem({
   item,
-  resolved,
+  interpretation,
   foods,
   onQuantity,
   onReplace,
   onRemove,
 }: {
   item: PlanItem
-  resolved: ReturnType<typeof resolvePlanItem>
+  interpretation: PlanItemInterpretation
   foods: Food[]
   onQuantity: (quantity: number) => void
   onReplace: (foodId: string) => void
@@ -604,31 +619,33 @@ function MealPlanItem({
   const [replacing, setReplacing] = useState(false)
   const targetId = item.target.id
   const isFoodTarget = item.target.kind === 'food'
-  const label = resolved?.label ??
+  const label = interpretation.label ??
     `${isFoodTarget ? 'Unavailable food' : 'Recipe'} ${targetId}`
 
   return (
     <>
       <div
         className={`meal-item ${
-          resolved?.complete ? '' : 'unresolved-item'
+          interpretation.complete ? '' : 'unresolved-item'
         }`}
       >
         <div className="food-avatar">
-          {resolved ? resolved.kind.slice(0, 1).toUpperCase() : <AlertTriangle size={14} />}
+          {interpretation.available
+            ? interpretation.target.kind.slice(0, 1).toUpperCase()
+            : <AlertTriangle size={14} />}
         </div>
         <div className="meal-item-name">
-          <strong>{resolved?.label ?? `Unavailable ${isFoodTarget ? 'Food' : 'Recipe'}`}</strong>
+          <strong>{interpretation.label ?? `Unavailable ${isFoodTarget ? 'Food' : 'Recipe'}`}</strong>
           <span>
-            {resolved
-              ? `${resolved.kind === 'recipe' ? 'Recipe · ' : ''}${formatKnownNutritionValue(
-                  `${round(resolved.nutrition.calories)} kcal`,
-                  resolved.known.calories,
+            {interpretation.available
+              ? `${interpretation.target.kind === 'recipe' ? 'Recipe · ' : ''}${formatKnownNutritionValue(
+                  `${round(interpretation.nutrition.calories)} kcal`,
+                  interpretation.known.calories,
                 )} · ${formatKnownNutritionValue(
-                  `${round(resolved.nutrition.weightOz, 1)} oz`,
-                  resolved.known.weightOz,
+                  `${round(interpretation.nutrition.weightOz, 1)} oz`,
+                  interpretation.known.weightOz,
                 )}${
-                  resolved.complete ? '' : ' · Incomplete'
+                  interpretation.complete ? '' : ' · Incomplete'
                 }`
               : `${isFoodTarget ? 'Food' : 'Recipe'} ID: ${targetId}`}
           </span>
@@ -639,7 +656,7 @@ function MealPlanItem({
           onCommit={onQuantity}
         />
         <div className="meal-item-actions">
-          {!resolved && isFoodTarget && (
+          {!interpretation.available && isFoodTarget && (
             <button
               className="button button-quiet item-action"
               type="button"
@@ -659,7 +676,7 @@ function MealPlanItem({
           </button>
         </div>
       </div>
-      {!resolved && isFoodTarget && replacing && (
+      {!interpretation.available && isFoodTarget && replacing && (
         <div className="replacement-picker">
           <FoodPicker
             foods={foods}

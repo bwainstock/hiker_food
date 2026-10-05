@@ -7,19 +7,17 @@ import {
   nutritionForItems,
   round,
 } from '../lib/nutrition'
+import { interpretPlanItems } from '../lib/plan-item'
 import { calculateSupplementScenario } from '../lib/supplements'
-import { resolveRecipe } from '../lib/recipe'
-import type { Food, PlannerState, Recipe } from '../types'
+import type { Food, PlannerState } from '../types'
 import { MEALS } from '../types'
 
 export function SodiumCalculatorPage({
   state,
-  foodsById,
-  recipesById,
+  foods,
 }: {
   state: PlannerState
-  foodsById: Map<string, Food>
-  recipesById: Map<string, Recipe>
+  foods: Food[]
 }) {
   const [temperature, setTemperature] = useState(25)
   const [dayId, setDayId] = useState(state.days[0]?.id ?? '')
@@ -30,36 +28,32 @@ export function SodiumCalculatorPage({
 
   const day =
     state.days.find((candidate) => candidate.id === dayId) ?? state.days[0]
-  const diet = useMemo(
+  const interpretations = useMemo(
     () =>
       day
-        ? addNutrition(
-            ...MEALS.map((meal) =>
-              nutritionForItems(day.meals[meal], foodsById, recipesById),
-            ),
-          )
-        : addNutrition(),
-    [day, foodsById, recipesById],
-  )
-  const unresolvedItems = useMemo(
-    () =>
-      day
-        ? MEALS.flatMap((meal) =>
-          day.meals[meal].filter(
-            (item) =>
-              item.target.kind === 'food'
-                ? !foodsById.has(item.target.id)
-                : !recipesById.has(item.target.id) ||
-                  !resolveRecipe(
-                    recipesById.get(item.target.id)!,
-                    foodsById,
-                  ).complete,
-          ),
+        ? MEALS.map((meal) =>
+          interpretPlanItems(day.meals[meal], foods, state.recipes),
         )
         : [],
-    [day, foodsById, recipesById],
+    [day, foods, state.recipes],
   )
-  const totalsIncomplete = unresolvedItems.length > 0
+  const diet = useMemo(
+    () =>
+      interpretations.length > 0
+        ? addNutrition(
+            ...interpretations.map((items) => nutritionForItems(items)),
+          )
+        : addNutrition(),
+    [interpretations],
+  )
+  const totalsIncomplete = interpretations.some((items) =>
+    items.some(
+      (interpretation) =>
+        !interpretation.available ||
+        (interpretation.target.kind === 'recipe' &&
+          !interpretation.complete),
+    ),
+  )
 
   const selected =
     ELECTROLYTES.find((item) => item.id === electrolyteId) ?? ELECTROLYTES[0]
