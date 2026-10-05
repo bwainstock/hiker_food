@@ -65,6 +65,7 @@ test('mixed Recipe creation, discovery, editing, and persistence @smoke', async 
   await createDialog
     .getByRole('option', { name: /Justin's Classic Peanut Butter/ })
     .click()
+  await expect(createDialog).toContainText('Serving size: 32 g · 1.13 oz')
   const foodQuantity = createDialog.getByRole('spinbutton', {
     name: "Quantity for Justin's Classic Peanut Butter",
   })
@@ -131,6 +132,7 @@ test('mixed Recipe creation, discovery, editing, and persistence @smoke', async 
   let editDialog = page.getByRole('dialog', {
     name: 'Edit Peanut butter bowl',
   })
+  await expect(editDialog).toContainText('Serving size: 32 g · 1.13 oz')
   await editDialog
     .getByRole('spinbutton', {
       name: "Quantity for Justin's Classic Peanut Butter",

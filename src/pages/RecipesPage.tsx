@@ -546,6 +546,11 @@ function RecipeForm({
                         {food?.category ??
                           `Food ID: ${ingredient.foodId} · Repair required`}
                       </span>
+                      {food && (
+                        <span>
+                          Serving size: {formatFoodServingSize(food)}
+                        </span>
+                      )}
                     </div>
                     <label>
                       <span>Servings</span>
@@ -712,6 +717,23 @@ function RecipeForm({
       </div>
     </Modal>
   )
+}
+
+function formatFoodServingSize(food: Food) {
+  const weights = [
+    food.servingGrams !== null &&
+    Number.isFinite(food.servingGrams) &&
+    food.servingGrams > 0
+      ? `${round(food.servingGrams, 1)} g`
+      : null,
+    food.servingOz !== null &&
+    Number.isFinite(food.servingOz) &&
+    food.servingOz > 0
+      ? `${round(food.servingOz, 2)} oz`
+      : null,
+  ].filter((weight): weight is string => weight !== null)
+
+  return weights.length > 0 ? weights.join(' · ') : 'Unavailable'
 }
 
 type DisplayNutritionKey =
