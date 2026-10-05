@@ -9,6 +9,7 @@ import {
   navigateTo,
   selectImportFile,
   stateWithIncompleteRecipe,
+  stateWithRecipe,
 } from './helpers'
 
 test('axe scan on every screen', async ({ page }) => {
@@ -145,11 +146,28 @@ test('axe scan on in-use custom-Food delete confirmation', async ({ page }) => {
     target: { kind: 'food', id: custom.id },
     quantity: 1,
   })
+  state.recipes.push({
+    id: 'recipe-accessible',
+    name: 'Accessible Recipe',
+    category: null,
+    instructions: null,
+    ingredients: [
+      { kind: 'food', foodId: custom.id, quantity: 1 },
+    ],
+  })
   await launchWithState(page, state)
   await navigateTo(page, 'Food library')
 
   await page.getByRole('textbox', { name: 'Search foods' }).fill('Accessible Meal')
   await page.getByRole('button', { name: 'Delete Accessible Meal' }).click()
+  await expectNoAxeViolations(page)
+})
+
+test('axe scan on placed Recipe delete confirmation', async ({ page }) => {
+  await launchWithState(page, stateWithRecipe({ placed: true }))
+  await navigateTo(page, 'Recipes')
+
+  await page.getByRole('button', { name: 'Delete Trail bowl' }).click()
   await expectNoAxeViolations(page)
 })
 
