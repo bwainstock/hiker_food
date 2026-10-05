@@ -4,6 +4,7 @@ import type {
   Food,
   Nutrition,
   PlannerState,
+  Recipe,
 } from '../../src/types'
 import { createEmptyMeals } from '../../src/lib/planner'
 
@@ -71,7 +72,34 @@ export function makeDay(id = 'day-1', name = 'Day 1'): DayPlan {
 }
 
 export function makeState(day = makeDay()): PlannerState {
-  return { days: [day], customFoods: [] }
+  return { days: [day], customFoods: [], recipes: [] }
+}
+
+export function makeRecipe(overrides: Partial<Recipe> = {}): Recipe {
+  return {
+    id: 'recipe-1',
+    name: 'Trail bowl',
+    category: 'Dinner',
+    instructions: null,
+    ingredients: [
+      { kind: 'food', foodId: 'food-1', quantity: 1.5 },
+      {
+        kind: 'recipe-only',
+        id: 'spice-1',
+        name: 'Spice blend',
+        weightGrams: 10,
+        calories: 20,
+        fat: 0,
+        carbs: 4,
+        protein: 1,
+        fiber: 1,
+        sugar: 0,
+        sodium: 50,
+        potassium: 25,
+      },
+    ],
+    ...overrides,
+  }
 }
 
 export function makeNutrition(

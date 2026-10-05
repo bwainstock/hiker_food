@@ -15,6 +15,10 @@ import {
   nutritionForFood,
   round,
 } from '../lib/nutrition'
+import {
+  nutritionForRecipeOnlyIngredient,
+  scaleNutrition,
+} from '../lib/recipe'
 import { aggregateShoppingList } from '../lib/shopping'
 import {
   removeFoodReferences,
@@ -31,27 +35,40 @@ export function ShoppingPage({
   setState,
   foods,
   foodsById,
+  onEditRecipes,
 }: {
   state: PlannerState
   setState: PlannerStateUpdater
   foods: Food[]
   foodsById: Map<string, Food>
+  onEditRecipes: () => void
 }) {
   const [packed, setPacked] = useState<Set<string>>(new Set())
   const [replacingFoodId, setReplacingFoodId] = useState<string | null>(null)
 
-  const { rows, unresolved } = useMemo(
+  const { rows, recipeOnlyRows, unresolved } = useMemo(
     () => aggregateShoppingList(state, foodsById),
     [state, foodsById],
   )
 
   const total = addNutrition(
     ...rows.map(({ food, quantity }) => nutritionForFood(food, quantity)),
+    ...recipeOnlyRows.map((row) =>
+      scaleNutrition(
+        nutritionForRecipeOnlyIngredient(row.ingredient),
+        row.placementQuantity,
+      ),
+    ),
   )
   const categories = new Set(rows.map(({ food }) => food.category)).size
-  const packedCount = rows.filter(({ food }) => packed.has(food.id)).length
+  const totalRows = rows.length + recipeOnlyRows.length
+  const packedCount =
+    rows.filter(({ food }) => packed.has(`food:${food.id}`)).length +
+    recipeOnlyRows.filter((row) =>
+      packed.has(`recipe-only:${row.recipeId}:${row.ingredientId}`),
+    ).length
 
-  if (rows.length === 0 && unresolved.length === 0) {
+  if (totalRows === 0 && unresolved.length === 0) {
     return (
       <EmptyState
         icon={<ShoppingBag />}
@@ -66,7 +83,7 @@ export function ShoppingPage({
       <section className="stat-grid stat-grid-three print-totals">
         <StatCard
           label="Available foods"
-          value={rows.length.toString()}
+          value={totalRows.toString()}
           detail={
             unresolved.length
               ? `${unresolved.length} unavailable reference${unresolved.length === 1 ? '' : 's'}`
@@ -82,9 +99,9 @@ export function ShoppingPage({
         />
         <StatCard
           label="Packed"
-          value={`${packedCount} / ${rows.length}`}
+          value={`${packedCount} / ${totalRows}`}
           detail={`${round(
-            rows.length ? (packedCount / rows.length) * 100 : 0,
+            totalRows ? (packedCount / totalRows) * 100 : 0,
           )}% complete`}
           accent="#e56f35"
         />
@@ -117,7 +134,8 @@ export function ShoppingPage({
         </div>
         <div className="shopping-list">
           {rows.map(({ food, quantity }) => {
-            const isPacked = packed.has(food.id)
+            const packedId = `food:${food.id}`
+            const isPacked = packed.has(packedId)
             return (
               <button
                 className={`shopping-row ${isPacked ? 'packed' : ''}`}
@@ -127,8 +145,8 @@ export function ShoppingPage({
                 onClick={() =>
                   setPacked((current) => {
                     const next = new Set(current)
-                    if (next.has(food.id)) next.delete(food.id)
-                    else next.add(food.id)
+                    if (next.has(packedId)) next.delete(packedId)
+                    else next.add(packedId)
                     return next
                   })
                 }
@@ -154,6 +172,41 @@ export function ShoppingPage({
               </button>
             )
           })}
+          {recipeOnlyRows.map((row) => {
+            const packedId =
+              `recipe-only:${row.recipeId}:${row.ingredientId}`
+            const isPacked = packed.has(packedId)
+            return (
+              <button
+                className={`shopping-row ${isPacked ? 'packed' : ''}`}
+                type="button"
+                key={packedId}
+                aria-pressed={isPacked}
+                onClick={() =>
+                  setPacked((current) => {
+                    const next = new Set(current)
+                    if (next.has(packedId)) next.delete(packedId)
+                    else next.add(packedId)
+                    return next
+                  })
+                }
+              >
+                <span className="check-box">{isPacked && <Check size={15} />}</span>
+                <span className="shopping-name">
+                  <strong>{row.name}</strong>
+                  <small>
+                    Recipe-only · From {row.sourceRecipe} ·{' '}
+                    {round(row.weightGrams, 1)} g · {round(row.calories)} kcal
+                  </small>
+                </span>
+                <Badge tone="amber">Recipe-only</Badge>
+                <span className="shopping-quantity">
+                  <strong>{round(row.placementQuantity, 1)}</strong>
+                  <small>Recipe servings</small>
+                </span>
+              </button>
+            )
+          })}
         </div>
       </section>
 
@@ -166,65 +219,98 @@ export function ShoppingPage({
             </div>
           </div>
           <div className="shopping-list">
-            {unresolved.map((row) => (
-              <div className="shopping-row unresolved-shopping-row" key={row.foodId}>
-                <span className="unresolved-mark">
-                  <AlertTriangle size={16} />
-                </span>
-                <span className="shopping-name">
-                  <strong>Unavailable food</strong>
-                  <small>
-                    Food ID: {row.foodId} · {row.itemCount} Plan item
-                    {row.itemCount === 1 ? '' : 's'} ·{' '}
-                    {row.locations.join(', ')}
-                  </small>
-                </span>
-                <span className="shopping-quantity">
-                  <strong>{round(row.quantity, 1)}</strong>
-                  <small>servings</small>
-                </span>
-                <span className="unresolved-actions print-hidden">
-                  <button
-                    className="button button-quiet item-action"
-                    type="button"
-                    aria-expanded={replacingFoodId === row.foodId}
-                    onClick={() =>
-                      setReplacingFoodId((current) =>
-                        current === row.foodId ? null : row.foodId,
-                      )
-                    }
-                  >
-                    Replace
-                  </button>
-                  <button
-                    className="icon-button danger"
-                    type="button"
-                    aria-label={`Remove unavailable food ${row.foodId}`}
-                    onClick={() =>
-                      setState((current) =>
-                        removeFoodReferences(current, row.foodId),
-                      )
-                    }
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </span>
-                {replacingFoodId === row.foodId && (
-                  <div className="unresolved-replacement">
-                    <FoodPicker
-                      foods={foods}
-                      placeholder={`Choose replacement for ${row.foodId}…`}
-                      onSelect={(food) => {
-                        setState((current) =>
-                          replaceFoodReferences(current, row.foodId, food.id),
-                        )
-                        setReplacingFoodId(null)
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            ))}
+            {unresolved.map((row) => {
+              const recipeNames = row.recipeSources.map(({ name }) => name)
+              const hasRecipeReferences = recipeNames.length > 0
+              return (
+                <div
+                  className="shopping-row unresolved-shopping-row"
+                  key={row.foodId}
+                  role="group"
+                  aria-label={`Unavailable food ${row.foodId}`}
+                >
+                  <span className="unresolved-mark">
+                    <AlertTriangle size={16} />
+                  </span>
+                  <span className="shopping-name">
+                    <strong>Unavailable food</strong>
+                    <small>
+                      Food ID: {row.foodId} · {row.itemCount} Plan item
+                      {row.itemCount === 1 ? '' : 's'}
+                      {' · '}
+                      {row.locations.join(', ')}
+                      {hasRecipeReferences &&
+                        ` · From Recipe: ${recipeNames.join(', ')}`}
+                    </small>
+                    {hasRecipeReferences && (
+                      <small>
+                        {row.directItemCount > 0
+                          ? `Repair the Food ingredient in ${recipeNames.join(', ')} before repairing direct Plan items.`
+                          : `Repair this Food ingredient in ${recipeNames.join(', ')}.`}
+                      </small>
+                    )}
+                  </span>
+                  <span className="shopping-quantity">
+                    <strong>{round(row.quantity, 1)}</strong>
+                    <small>servings</small>
+                  </span>
+                  {!hasRecipeReferences && (
+                    <span className="unresolved-actions print-hidden">
+                      <button
+                        className="button button-quiet item-action"
+                        type="button"
+                        aria-expanded={replacingFoodId === row.foodId}
+                        onClick={() =>
+                          setReplacingFoodId((current) =>
+                            current === row.foodId ? null : row.foodId,
+                          )
+                        }
+                      >
+                        Replace
+                      </button>
+                      <button
+                        className="icon-button danger"
+                        type="button"
+                        aria-label={`Remove unavailable food ${row.foodId}`}
+                        onClick={() =>
+                          setState((current) =>
+                            removeFoodReferences(current, row.foodId),
+                          )
+                        }
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </span>
+                  )}
+                  {hasRecipeReferences && (
+                    <span className="unresolved-actions print-hidden">
+                      <button
+                        className="button button-quiet item-action"
+                        type="button"
+                        aria-label={`Edit Recipes using unavailable food ${row.foodId}`}
+                        onClick={onEditRecipes}
+                      >
+                        Edit Recipes
+                      </button>
+                    </span>
+                  )}
+                  {!hasRecipeReferences && replacingFoodId === row.foodId && (
+                    <div className="unresolved-replacement">
+                      <FoodPicker
+                        foods={foods}
+                        placeholder={`Choose replacement for ${row.foodId}…`}
+                        onSelect={(food) => {
+                          setState((current) =>
+                            replaceFoodReferences(current, row.foodId, food.id),
+                          )
+                          setReplacingFoodId(null)
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </section>
       )}

@@ -19,7 +19,7 @@ Lunch, or Recovery.
 _Avoid_: Meal time, time slot
 
 **Plan item**:
-A quantity of one Food assigned to one meal period on one Trail day.
+A quantity of one Food or Recipe assigned to one meal period on one Trail day.
 _Avoid_: Meal, food row
 
 **Food**:
@@ -30,6 +30,24 @@ _Avoid_: Product, ingredient
 **Custom Food**:
 A user-defined Food that belongs to a Plan rather than the bundled catalog.
 _Avoid_: Manual item, personal food
+
+**Recipe**:
+A Plan-owned, one-serving composition of Food ingredients and Recipe-only
+ingredients. Its stable ID defines its identity independently of its name;
+create and edit drafts do not change the Plan until Save.
+_Avoid_: Custom Food, meal
+
+**Food ingredient**:
+A live reference from a Recipe to a Food by stable Food ID, with a quantity
+expressed in Food servings. Repeated selection of one Food increases the
+existing Food ingredient quantity rather than creating another reference.
+_Avoid_: Recipe Food, copied Food
+
+**Recipe-only ingredient**:
+An ingredient that belongs to one Recipe, has its own stable ID, gram weight,
+and label nutrition, and does not become a Food. Optional detailed nutrition
+values are stored as zero when omitted.
+_Avoid_: Custom Food, manual Food
 
 **Unresolved Plan item**:
 A structurally valid Plan item whose Food ID is not currently available. Its

@@ -2,6 +2,7 @@ import {
   Apple,
   BookOpen,
   ChevronRight,
+  CookingPot,
   Droplets,
   ListChecks,
   Menu,
@@ -37,6 +38,12 @@ const NAV_ITEMS: {
     label: 'Food library',
     detail: 'Browse & add foods',
     icon: Apple,
+  },
+  {
+    route: 'recipes',
+    label: 'Recipes',
+    detail: 'Combine foods',
+    icon: CookingPot,
   },
   {
     route: 'electrolytes',
@@ -107,7 +114,7 @@ export function Layout({
 
         <nav aria-label="Primary">
           <span className="nav-label">Plan</span>
-          {NAV_ITEMS.slice(0, 3).map((item) => (
+          {NAV_ITEMS.slice(0, 4).map((item) => (
             <NavItem
               key={item.route}
               {...item}
@@ -116,7 +123,7 @@ export function Layout({
             />
           ))}
           <span className="nav-label nav-label-spaced">Reference</span>
-          {NAV_ITEMS.slice(3).map((item) => (
+          {NAV_ITEMS.slice(4).map((item) => (
             <NavItem
               key={item.route}
               {...item}

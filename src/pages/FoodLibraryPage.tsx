@@ -14,11 +14,11 @@ import {
   createCustomFood,
   customFoodInputSchema,
 } from '../lib/customFood'
-import { densityLabel, round } from '../lib/nutrition'
 import {
-  countFoodReferences,
-  removeFoodReferences,
-} from '../lib/state'
+  analyzeCustomFoodDeletion,
+  deleteCustomFood,
+} from '../lib/deletion'
+import { densityLabel, round } from '../lib/nutrition'
 import type {
   Food,
   PlannerState,
@@ -46,23 +46,9 @@ export function FoodLibraryPage({
     [foods, query, category, sort],
   )
 
-  const deleteCustomFood = (food: Food, removeReferences: boolean) => {
-    setState((current) => {
-      const withoutReferences = removeReferences
-        ? removeFoodReferences(current, food.id)
-        : current
-      return {
-        ...withoutReferences,
-        customFoods: withoutReferences.customFoods.filter(
-          (candidate) => candidate.id !== food.id,
-        ),
-      }
-    })
-  }
-
-  const pendingReferenceCount = pendingDelete
-    ? countFoodReferences(state, pendingDelete.id)
-    : 0
+  const pendingImpact = pendingDelete
+    ? analyzeCustomFoodDeletion(state, pendingDelete.id)
+    : null
 
   return (
     <div className="library-page">
@@ -182,8 +168,18 @@ export function FoodLibraryPage({
                         type="button"
                         aria-label={`Delete ${food.name}`}
                         onClick={() => {
-                          const references = countFoodReferences(state, food.id)
-                          if (references === 0) deleteCustomFood(food, false)
+                          const impact = analyzeCustomFoodDeletion(
+                            state,
+                            food.id,
+                          )
+                          if (
+                            impact.planItemCount === 0 &&
+                            impact.foodIngredientCount === 0
+                          ) {
+                            setState((current) =>
+                              deleteCustomFood(current, food.id),
+                            )
+                          }
                           else setPendingDelete(food)
                         }}
                       >
@@ -215,19 +211,27 @@ export function FoodLibraryPage({
           }}
         />
       )}
-      {pendingDelete && (
+      {pendingDelete && pendingImpact && (
         <Modal
           title={`Delete ${pendingDelete.name}?`}
           onClose={() => setPendingDelete(null)}
         >
           <div className="modal-content">
             <p>
-              This custom Food is used by{' '}
               <strong>
-                {pendingReferenceCount} Plan item
-                {pendingReferenceCount === 1 ? '' : 's'}
+                {pendingImpact.planItemCount} direct Plan item
+                {pendingImpact.planItemCount === 1 ? '' : 's'}
+              </strong>{' '}
+              and{' '}
+              <strong>
+                {pendingImpact.foodIngredientCount} Food ingredient
+                {pendingImpact.foodIngredientCount === 1 ? '' : 's'}
               </strong>
-              . Deleting it also removes every one of those references.
+              {' '}reference this custom Food.
+            </p>
+            <p>
+              Direct placements will be removed. Recipe references will remain
+              unavailable and repairable.
             </p>
           </div>
           <div className="modal-actions">
@@ -243,12 +247,14 @@ export function FoodLibraryPage({
               className="button button-primary danger-button"
               type="button"
               onClick={() => {
-                deleteCustomFood(pendingDelete, true)
+                setState((current) =>
+                  deleteCustomFood(current, pendingDelete.id),
+                )
                 setPendingDelete(null)
               }}
             >
-              Delete Food and {pendingReferenceCount} reference
-              {pendingReferenceCount === 1 ? '' : 's'}
+              Delete Food and remove {pendingImpact.planItemCount} direct Plan
+              {' '}item{pendingImpact.planItemCount === 1 ? '' : 's'}
             </button>
           </div>
         </Modal>

@@ -7,6 +7,7 @@ import {
   launchClean,
   launchWithState,
   navigateTo,
+  stateWithRecipe,
 } from './helpers'
 
 test('clean launch and desktop screen navigation @smoke', async ({ page }) => {
@@ -18,6 +19,7 @@ test('clean launch and desktop screen navigation @smoke', async ({ page }) => {
   for (const screen of [
     ['Shopping list', 'Shopping list'],
     ['Food library', 'Food library'],
+    ['Recipes', 'Recipes'],
     ['Electrolytes', 'Electrolytes'],
     ['Na/K calculator', 'Sodium & potassium'],
     ['Trail guide', 'Trail guide'],
@@ -28,6 +30,110 @@ test('clean launch and desktop screen navigation @smoke', async ({ page }) => {
       page.getByRole('heading', { name: screen[1], level: 1 }),
     ).toBeVisible()
   }
+})
+
+test('mixed Recipe creation, discovery, editing, and persistence @smoke', async ({
+  page,
+}) => {
+  await launchWithState(page, emptyState())
+  await navigateTo(page, 'Recipes')
+  await expect(
+    page.getByRole('heading', { name: 'No Recipes yet' }),
+  ).toBeVisible()
+
+  await page.getByRole('button', { name: 'Create Recipe' }).click()
+  const createDialog = page.getByRole('dialog', { name: 'Create Recipe' })
+  await createDialog.getByRole('button', { name: 'Save Recipe' }).click()
+  await expect(createDialog.getByText('Enter a Recipe name.')).toBeVisible()
+  await expect(
+    createDialog.getByText('Add at least one ingredient.'),
+  ).toBeVisible()
+
+  await createDialog.getByLabel('Recipe name').fill('Peanut butter bowl')
+  await createDialog.getByLabel('Category').selectOption('Breakfast')
+  await createDialog
+    .getByLabel('Preparation instructions')
+    .fill('Stir with cold water')
+  const picker = createDialog.getByRole('combobox', {
+    name: 'Add a Food ingredient',
+  })
+  await picker.fill("Justin's Classic Peanut Butter")
+  await createDialog
+    .getByRole('option', { name: /Justin's Classic Peanut Butter/ })
+    .click()
+  await createDialog
+    .getByRole('button', { name: 'Add Recipe-only ingredient' })
+    .press('Enter')
+  const recipeOnly = createDialog.getByRole('group', {
+    name: 'Recipe-only ingredient 1',
+  })
+  await recipeOnly.getByLabel('Name').fill('Cocoa powder')
+  await recipeOnly.getByLabel('Weight (g)').fill('0')
+  await createDialog.getByRole('button', { name: 'Save Recipe' }).click()
+  await expect(
+    recipeOnly.getByText('Enter a weight greater than 0.'),
+  ).toBeVisible()
+  await recipeOnly.getByLabel('Weight (g)').fill('10')
+  await recipeOnly.getByLabel('Calories').fill('41.4')
+  await recipeOnly.getByLabel('Fat (g)').fill('1')
+  await recipeOnly.getByLabel('Carbohydrates (g)').fill('5')
+  await recipeOnly.getByLabel('Protein (g)').fill('2')
+  await createDialog.getByRole('button', { name: 'Save Recipe' }).click()
+
+  const recipe = page.getByRole('article', { name: 'Peanut butter bowl' })
+  await expect(recipe).toContainText('2 ingredients')
+  await expect(recipe).toContainText('251 kcal')
+  await expect(recipe).toContainText('Breakfast')
+  await expect(recipe).toContainText('Stir with cold water')
+
+  await page.reload()
+  await navigateTo(page, 'Recipes')
+  await expect(
+    page.getByRole('article', { name: 'Peanut butter bowl' }),
+  ).toBeVisible()
+  await page.getByRole('searchbox', { name: 'Search Recipes' }).fill('cocoa')
+  await expect(recipe).toBeVisible()
+  await page.getByLabel('Recipe category').selectOption('Dinner')
+  await expect(
+    page.getByRole('heading', { name: 'No matching Recipes' }),
+  ).toBeVisible()
+  await page.getByLabel('Recipe category').selectOption('Breakfast')
+  await expect(recipe).toBeVisible()
+  await page.getByRole('searchbox', { name: 'Search Recipes' }).fill('')
+  await page.getByLabel('Recipe category').selectOption('')
+
+  await page
+    .getByRole('button', { name: 'Edit Peanut butter bowl' })
+    .click()
+  const editDialog = page.getByRole('dialog', {
+    name: 'Edit Peanut butter bowl',
+  })
+  await editDialog
+    .getByRole('spinbutton', {
+      name: "Quantity for Justin's Classic Peanut Butter",
+    })
+    .fill('1.5')
+  await editDialog
+    .getByRole('group', { name: 'Recipe-only ingredient 1' })
+    .getByLabel('Calories')
+    .fill('50')
+  await editDialog.getByRole('button', { name: 'Save Recipe' }).click()
+  await expect(
+    page.getByRole('article', { name: 'Peanut butter bowl' }),
+  ).toContainText('365 kcal')
+
+  await page
+    .getByRole('button', { name: 'Edit Peanut butter bowl' })
+    .click()
+  const cancelDialog = page.getByRole('dialog', {
+    name: 'Edit Peanut butter bowl',
+  })
+  await cancelDialog.getByLabel('Recipe name').fill('Discarded name')
+  await cancelDialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(
+    page.getByRole('article', { name: 'Peanut butter bowl' }),
+  ).toBeVisible()
+  await expect(page.getByText('Discarded name')).toHaveCount(0)
 })
 
 test('Plan totals, Trail days, Shopping list, and persistence @smoke', async ({
@@ -42,6 +148,7 @@ test('Plan totals, Trail days, Shopping list, and persistence @smoke', async ({
   const quantity = page.getByRole('spinbutton', {
     name: "Quantity for Justin's Classic Peanut Butter",
   })
+
   await quantity.fill('2')
   await quantity.press('Tab')
   await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
@@ -63,6 +170,47 @@ test('Plan totals, Trail days, Shopping list, and persistence @smoke', async ({
   await page.reload()
   await expect(page.getByText('3 trail days')).toBeVisible()
   await expect(page.getByText('840 kcal', { exact: true })).toBeVisible()
+})
+
+test('Recipe planning, Shopping expansion, and persistence @smoke', async ({
+  page,
+}) => {
+  await launchWithState(page, stateWithRecipe())
+  const dinner = page.getByRole('article', { name: 'Dinner' })
+  const picker = dinner.getByRole('combobox')
+  await picker.fill('Trail bowl')
+  await dinner.getByRole('option', { name: /Trail bowl.*Recipe/ }).click()
+  await expect(dinner).toContainText('Recipe · 250 kcal')
+  await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
+    '250 kcal',
+  )
+
+  const quantity = dinner.getByRole('spinbutton', {
+    name: 'Quantity for Trail bowl',
+  })
+  await quantity.fill('2')
+  await quantity.press('Tab')
+  await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
+    '500 kcal',
+  )
+
+  await navigateTo(page, 'Shopping list')
+  await expect(
+    page.getByRole('button', {
+      name: /Justin's Classic Peanut Butter.*2.*servings/,
+    }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', {
+      name: /Cocoa powder.*From Trail bowl.*20 g/,
+    }),
+  ).toBeVisible()
+
+  await page.reload()
+  await navigateTo(page, 'Meal planner')
+  await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
+    '500 kcal',
+  )
 })
 
 test('custom Food creation and in-use deletion safety @smoke', async ({
@@ -92,7 +240,8 @@ test('custom Food creation and in-use deletion safety @smoke', async ({
   const deleteDialog = page.getByRole('dialog', {
     name: 'Delete Test Kitchen Cocoa Couscous?',
   })
-  await expect(deleteDialog).toContainText('1 Plan item')
+  await expect(deleteDialog).toContainText('1 direct Plan item')
+  await expect(deleteDialog).toContainText('0 Food ingredients')
   await expect(deleteDialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
   await deleteDialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(
@@ -103,7 +252,9 @@ test('custom Food creation and in-use deletion safety @smoke', async ({
     .getByRole('button', { name: 'Delete Test Kitchen Cocoa Couscous' })
     .click()
   await page
-    .getByRole('button', { name: 'Delete Food and 1 reference' })
+    .getByRole('button', {
+      name: 'Delete Food and remove 1 direct Plan item',
+    })
     .click()
   await expect(
     page.getByText('Test Kitchen Cocoa Couscous', { exact: true }),

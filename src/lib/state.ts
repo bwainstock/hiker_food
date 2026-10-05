@@ -1,13 +1,24 @@
-import type { Food, PlannerState, PortableBackupV1 } from '../types'
+import type {
+  Food,
+  PlannerState,
+  PortableBackupV2,
+  Recipe,
+} from '../types'
 import { MEALS } from '../types'
-import { plannerStateSchema, portableBackupV1Schema } from './schemas'
+import {
+  legacyPlannerStateSchema,
+  plannerStateSchema,
+  portableBackupV1Schema,
+  portableBackupV2Schema,
+} from './schemas'
+import { resolveRecipe } from './recipe'
 
 export const PLANNER_STORAGE_KEY = 'trail-rations-plan-v1'
 export const PREVIOUS_STATE_STORAGE_KEY =
   'trail-rations-plan-previous-valid-v1'
 export const MAX_IMPORT_BYTES = 5 * 1024 * 1024
 
-export type ParsedStateSource = 'legacy-v0' | 'v1'
+export type ParsedStateSource = 'legacy-v0' | 'v1' | 'v2'
 
 export interface StateParseSuccess {
   ok: true
@@ -24,6 +35,27 @@ export interface StateParseFailure {
 }
 
 export type StateParseResult = StateParseSuccess | StateParseFailure
+
+type LegacyPlannerState = ReturnType<typeof legacyPlannerStateSchema.parse>
+
+function migrateLegacyState(state: LegacyPlannerState): PlannerState {
+  return plannerStateSchema.parse({
+    days: state.days.map((day) => ({
+      ...day,
+      meals: Object.fromEntries(
+        MEALS.map((meal) => [
+          meal,
+          day.meals[meal].map(({ foodId, ...item }) => ({
+            ...item,
+            target: { kind: 'food', id: foodId },
+          })),
+        ]),
+      ),
+    })),
+    customFoods: state.customFoods,
+    recipes: [],
+  })
+}
 
 function describePath(path: PropertyKey[]) {
   if (path.length === 0) return 'root'
@@ -64,32 +96,50 @@ export function parsePlannerStateText(raw: string): StateParseResult {
     'schemaVersion' in value
   ) {
     const version = (value as { schemaVersion?: unknown }).schemaVersion
-    if (version !== 1) {
+    if (version !== 1 && version !== 2) {
       return {
         ok: false,
         kind: 'unsupported-version',
         summary: `Schema version ${String(version)} is not supported.`,
         errors: [
-          'This app can import schema version 1 and legacy unversioned PlannerState files.',
+          'This app can import schema versions 1 and 2 and legacy unversioned PlannerState files.',
         ],
         raw,
       }
     }
 
-    const result = portableBackupV1Schema.safeParse(value)
+    if (version === 1) {
+      const result = portableBackupV1Schema.safeParse(value)
+      if (!result.success) {
+        return {
+          ok: false,
+          kind: 'invalid-state',
+          summary: 'The version 1 backup is structurally invalid.',
+          errors: validationErrors(result.error.issues),
+          raw,
+        }
+      }
+      return {
+        ok: true,
+        source: 'v1',
+        state: migrateLegacyState(result.data.state),
+      }
+    }
+
+    const result = portableBackupV2Schema.safeParse(value)
     if (!result.success) {
       return {
         ok: false,
         kind: 'invalid-state',
-        summary: 'The version 1 backup is structurally invalid.',
+        summary: 'The version 2 backup is structurally invalid.',
         errors: validationErrors(result.error.issues),
         raw,
       }
     }
-    return { ok: true, source: 'v1', state: result.data.state }
+    return { ok: true, source: 'v2', state: result.data.state }
   }
 
-  const result = plannerStateSchema.safeParse(value)
+  const result = legacyPlannerStateSchema.safeParse(value)
   if (!result.success) {
     return {
       ok: false,
@@ -99,13 +149,17 @@ export function parsePlannerStateText(raw: string): StateParseResult {
       raw,
     }
   }
-  return { ok: true, source: 'legacy-v0', state: result.data }
+  return {
+    ok: true,
+    source: 'legacy-v0',
+    state: migrateLegacyState(result.data),
+  }
 }
 
 export function serializePlannerState(state: PlannerState) {
   const validState = plannerStateSchema.parse(state)
-  const backup: PortableBackupV1 = {
-    schemaVersion: 1,
+  const backup: PortableBackupV2 = {
+    schemaVersion: 2,
     state: validState,
   }
   return JSON.stringify(backup, null, 2)
@@ -128,29 +182,49 @@ export interface UnresolvedPlanItem {
   dayName: string
   meal: (typeof MEALS)[number]
   itemId: string
-  foodId: string
   quantity: number
+  foodId?: string
+  recipeId?: string
 }
 
 export function findUnresolvedPlanItems(
   state: PlannerState,
   foodsById: ReadonlyMap<string, Food>,
+  recipesById: ReadonlyMap<string, Recipe> = new Map(
+    state.recipes.map((recipe) => [recipe.id, recipe]),
+  ),
 ) {
   return state.days.flatMap((day) =>
     MEALS.flatMap((meal) =>
       day.meals[meal].flatMap((item): UnresolvedPlanItem[] =>
-        foodsById.has(item.foodId)
-          ? []
-          : [
+        item.target.kind === 'food'
+          ? foodsById.has(item.target.id)
+            ? []
+            : [
               {
                 dayId: day.id,
                 dayName: day.name,
                 meal,
                 itemId: item.id,
-                foodId: item.foodId,
+                foodId: item.target.id,
                 quantity: item.quantity,
               },
-            ],
+            ]
+          : (() => {
+              const recipe = recipesById.get(item.target.id)
+              return recipe && resolveRecipe(recipe, foodsById).complete
+                ? []
+                : [
+                    {
+                      dayId: day.id,
+                      dayName: day.name,
+                      meal,
+                      itemId: item.id,
+                      recipeId: item.target.id,
+                      quantity: item.quantity,
+                    },
+                  ]
+            })(),
       ),
     ),
   )
@@ -170,11 +244,31 @@ export function statePreview(
   builtInFoods: readonly Food[],
 ) {
   const foodsById = foodsByIdForState(state, builtInFoods)
+  const unresolvedRecipeIngredients = state.recipes.reduce(
+    (total, recipe) =>
+      total +
+      recipe.ingredients.filter(
+        (ingredient) =>
+          ingredient.kind === 'food' &&
+          !foodsById.has(ingredient.foodId),
+      ).length,
+    0,
+  )
+  const incompleteRecipes = state.recipes.filter((recipe) =>
+    recipe.ingredients.some(
+      (ingredient) =>
+        ingredient.kind === 'food' &&
+        !foodsById.has(ingredient.foodId),
+    ),
+  ).length
   return {
     trailDays: state.days.length,
     planItems: countPlanItems(state),
     customFoods: state.customFoods.length,
     unresolvedItems: findUnresolvedPlanItems(state, foodsById).length,
+    recipes: state.recipes.length,
+    incompleteRecipes,
+    unresolvedRecipeIngredients,
   }
 }
 
@@ -191,8 +285,8 @@ export function replaceFoodReferences(
         MEALS.map((meal) => [
           meal,
           day.meals[meal].map((item) =>
-            item.foodId === oldFoodId
-              ? { ...item, foodId: newFoodId }
+            item.target.kind === 'food' && item.target.id === oldFoodId
+              ? { ...item, target: { kind: 'food' as const, id: newFoodId } }
               : item,
           ),
         ]),
@@ -212,7 +306,10 @@ export function removeFoodReferences(
       meals: Object.fromEntries(
         MEALS.map((meal) => [
           meal,
-          day.meals[meal].filter((item) => item.foodId !== foodId),
+          day.meals[meal].filter(
+            (item) =>
+              item.target.kind !== 'food' || item.target.id !== foodId,
+          ),
         ]),
       ) as typeof day.meals,
     })),
@@ -226,7 +323,10 @@ export function countFoodReferences(state: PlannerState, foodId: string) {
       MEALS.reduce(
         (mealTotal, meal) =>
           mealTotal +
-          day.meals[meal].filter((item) => item.foodId === foodId).length,
+          day.meals[meal].filter(
+            (item) =>
+              item.target.kind === 'food' && item.target.id === foodId,
+          ).length,
         0,
       ),
     0,

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { MEALS } from '../types'
+import { MEALS, RECIPE_CATEGORIES } from '../types'
 
 const finiteNumber = z.number().finite()
 const nullableFiniteNumber = finiteNumber.nullable()
@@ -112,10 +112,79 @@ export const planItemQuantitySchema = finiteNumber
     'Enter a quantity in increments of 0.1.',
   )
 
+const foodIngredientSchema = z
+  .object({
+    kind: z.literal('food'),
+    foodId: nonemptyString,
+    quantity: planItemQuantitySchema,
+  })
+  .strict()
+
+const recipeOnlyIngredientSchema = z
+  .object({
+    kind: z.literal('recipe-only'),
+    id: nonemptyString,
+    name: nonemptyString,
+    weightGrams: finiteNumber.positive('Enter a weight greater than 0.'),
+    calories: finiteNumber.nonnegative(),
+    fat: finiteNumber.nonnegative(),
+    carbs: finiteNumber.nonnegative(),
+    protein: finiteNumber.nonnegative(),
+    fiber: finiteNumber.nonnegative().default(0),
+    sugar: finiteNumber.nonnegative().default(0),
+    sodium: finiteNumber.nonnegative().default(0),
+    potassium: finiteNumber.nonnegative().default(0),
+  })
+  .strict()
+
+export const recipeIngredientSchema = z.discriminatedUnion('kind', [
+  foodIngredientSchema,
+  recipeOnlyIngredientSchema,
+])
+
+export const recipeSchema = z
+  .object({
+    id: nonemptyString,
+    name: nonemptyString,
+    category: z.enum(RECIPE_CATEGORIES).nullable().default(null),
+    instructions: z.string().nullable().default(null),
+    ingredients: z.array(recipeIngredientSchema).min(1),
+  })
+  .strict()
+  .superRefine((recipe, context) => {
+    const foodIds = new Set<string>()
+    const recipeOnlyIds = new Set<string>()
+    recipe.ingredients.forEach((ingredient, ingredientIndex) => {
+      if (ingredient.kind === 'food') {
+        if (foodIds.has(ingredient.foodId)) {
+          context.addIssue({
+            code: 'custom',
+            path: ['ingredients', ingredientIndex, 'foodId'],
+            message: `Duplicate Food ingredient ID "${ingredient.foodId}".`,
+          })
+        }
+        foodIds.add(ingredient.foodId)
+        return
+      }
+
+      if (recipeOnlyIds.has(ingredient.id)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['ingredients', ingredientIndex, 'id'],
+          message: `Duplicate Recipe-only ingredient ID "${ingredient.id}".`,
+        })
+      }
+      recipeOnlyIds.add(ingredient.id)
+    })
+  })
+
 export const planItemSchema = z
   .object({
     id: nonemptyString,
-    foodId: nonemptyString,
+    target: z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('food'), id: nonemptyString }).strict(),
+      z.object({ kind: z.literal('recipe'), id: nonemptyString }).strict(),
+    ]),
     quantity: planItemQuantitySchema,
   })
   .strict()
@@ -132,9 +201,32 @@ export const dayPlanSchema = z
   })
   .strict()
 
-export const plannerStateSchema = z
+const legacyPlanItemSchema = z
   .object({
-    days: z.array(dayPlanSchema).min(1, 'A plan must have at least one Trail day.'),
+    id: nonemptyString,
+    foodId: nonemptyString,
+    quantity: planItemQuantitySchema,
+  })
+  .strict()
+
+const legacyMealShape = Object.fromEntries(
+  MEALS.map((meal) => [meal, z.array(legacyPlanItemSchema)]),
+) as Record<
+  (typeof MEALS)[number],
+  z.ZodArray<typeof legacyPlanItemSchema>
+>
+
+const legacyDayPlanSchema = z
+  .object({
+    id: nonemptyString,
+    name: z.string(),
+    meals: z.object(legacyMealShape).strict(),
+  })
+  .strict()
+
+export const legacyPlannerStateSchema = z
+  .object({
+    days: z.array(legacyDayPlanSchema).min(1),
     customFoods: z.array(persistedCustomFoodCompatibilitySchema),
   })
   .strict()
@@ -179,9 +271,101 @@ export const plannerStateSchema = z
     })
   })
 
+export const plannerStateSchema = z
+  .object({
+    days: z.array(dayPlanSchema).min(1, 'A plan must have at least one Trail day.'),
+    customFoods: z.array(persistedCustomFoodCompatibilitySchema),
+    recipes: z.array(recipeSchema),
+  })
+  .strict()
+  .superRefine((state, context) => {
+    const dayIds = new Set<string>()
+    const itemIds = new Set<string>()
+    const customFoodIds = new Set<string>()
+    const recipeIds = new Set<string>()
+
+    state.days.forEach((day, dayIndex) => {
+      if (dayIds.has(day.id)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['days', dayIndex, 'id'],
+          message: `Duplicate Trail day ID "${day.id}".`,
+        })
+      }
+      dayIds.add(day.id)
+
+      MEALS.forEach((meal) => {
+        day.meals[meal].forEach((item, itemIndex) => {
+          if (itemIds.has(item.id)) {
+            context.addIssue({
+              code: 'custom',
+              path: ['days', dayIndex, 'meals', meal, itemIndex, 'id'],
+              message: `Duplicate Plan item ID "${item.id}".`,
+            })
+          }
+          itemIds.add(item.id)
+        })
+      })
+    })
+
+    state.customFoods.forEach((food, foodIndex) => {
+      if (customFoodIds.has(food.id)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['customFoods', foodIndex, 'id'],
+          message: `Duplicate custom Food ID "${food.id}".`,
+        })
+      }
+      customFoodIds.add(food.id)
+    })
+
+    state.recipes.forEach((recipe, recipeIndex) => {
+      if (recipeIds.has(recipe.id)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['recipes', recipeIndex, 'id'],
+          message: `Duplicate Recipe ID "${recipe.id}".`,
+        })
+      }
+      recipeIds.add(recipe.id)
+    })
+
+    state.days.forEach((day, dayIndex) => {
+      MEALS.forEach((meal) => {
+        day.meals[meal].forEach((item, itemIndex) => {
+          if (
+            item.target.kind === 'recipe' &&
+            !recipeIds.has(item.target.id)
+          ) {
+            context.addIssue({
+              code: 'custom',
+              path: [
+                'days',
+                dayIndex,
+                'meals',
+                meal,
+                itemIndex,
+                'target',
+                'id',
+              ],
+              message: `Recipe target "${item.target.id}" is not available.`,
+            })
+          }
+        })
+      })
+    })
+  })
+
 export const portableBackupV1Schema = z
   .object({
     schemaVersion: z.literal(1),
+    state: legacyPlannerStateSchema,
+  })
+  .strict()
+
+export const portableBackupV2Schema = z
+  .object({
+    schemaVersion: z.literal(2),
     state: plannerStateSchema,
   })
   .strict()

@@ -66,7 +66,9 @@ export type MealName = (typeof MEALS)[number]
 
 export interface PlanItem {
   id: string
-  foodId: string
+  target:
+    | { kind: 'food'; id: string }
+    | { kind: 'recipe'; id: string }
   quantity: number
 }
 
@@ -76,13 +78,58 @@ export interface DayPlan {
   meals: Record<MealName, PlanItem[]>
 }
 
+export const RECIPE_CATEGORIES = [
+  'Breakfast',
+  'Lunch',
+  'Dinner',
+  'Snack',
+  'Dessert',
+  'Other',
+] as const
+
+export type RecipeCategory = (typeof RECIPE_CATEGORIES)[number]
+
+export interface FoodIngredient {
+  kind: 'food'
+  foodId: string
+  quantity: number
+}
+
+export interface RecipeOnlyIngredient {
+  kind: 'recipe-only'
+  id: string
+  name: string
+  weightGrams: number
+  calories: number
+  fat: number
+  carbs: number
+  protein: number
+  fiber: number
+  sugar: number
+  sodium: number
+  potassium: number
+}
+
+export type RecipeIngredient =
+  | FoodIngredient
+  | RecipeOnlyIngredient
+
+export interface Recipe {
+  id: string
+  name: string
+  category: RecipeCategory | null
+  instructions: string | null
+  ingredients: RecipeIngredient[]
+}
+
 export interface PlannerState {
   days: DayPlan[]
   customFoods: Food[]
+  recipes: Recipe[]
 }
 
-export interface PortableBackupV1 {
-  schemaVersion: 1
+export interface PortableBackupV2 {
+  schemaVersion: 2
   state: PlannerState
 }
 
@@ -107,6 +154,7 @@ export type Route =
   | 'planner'
   | 'shopping'
   | 'foods'
+  | 'recipes'
   | 'electrolytes'
   | 'sodium'
   | 'guide'

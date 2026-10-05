@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useId, useMemo, useState } from 'react'
 import { FoodPicker } from '../components/FoodPicker'
+import { PlanTargetPicker } from '../components/PlanTargetPicker'
 import { Badge, EmptyState, ProgressBar, StatCard } from '../components/Ui'
 import {
   addNutrition,
@@ -24,6 +25,7 @@ import {
   round,
   sodiumLabel,
 } from '../lib/nutrition'
+import { resolvePlanItem } from '../lib/recipe'
 import { isTenthStepQuantity } from '../lib/schemas'
 import { createDay } from '../lib/planner'
 import { findUnresolvedPlanItems } from '../lib/state'
@@ -34,6 +36,7 @@ import type {
   PlanItem,
   PlannerState,
   PlannerStateUpdater,
+  Recipe,
 } from '../types'
 import { MEALS } from '../types'
 
@@ -55,11 +58,13 @@ export function PlannerPage({
   setState,
   foods,
   foodsById,
+  recipesById,
 }: {
   state: PlannerState
   setState: PlannerStateUpdater
   foods: Food[]
   foodsById: Map<string, Food>
+  recipesById: Map<string, Recipe>
 }) {
   const [activeDayId, setActiveDayId] = useState(state.days[0]?.id ?? '')
   const [expandedMeals, setExpandedMeals] = useState<Set<MealName>>(
@@ -69,27 +74,32 @@ export function PlannerPage({
   const activeDay =
     state.days.find((day) => day.id === activeDayId) ?? state.days[0]
   const unresolvedItems = useMemo(
-    () => findUnresolvedPlanItems(state, foodsById),
-    [state, foodsById],
+    () => findUnresolvedPlanItems(state, foodsById, recipesById),
+    [state, foodsById, recipesById],
   )
+  const activeDayUnresolved = activeDay
+    ? unresolvedItems.filter((item) => item.dayId === activeDay.id)
+    : []
 
   const dayNutrition = useMemo(() => {
     if (!activeDay) return addNutrition()
     return addNutrition(
       ...MEALS.map((meal) =>
-        nutritionForItems(activeDay.meals[meal], foodsById),
+        nutritionForItems(activeDay.meals[meal], foodsById, recipesById),
       ),
     )
-  }, [activeDay, foodsById])
+  }, [activeDay, foodsById, recipesById])
 
   const tripNutrition = useMemo(
     () =>
       addNutrition(
         ...state.days.flatMap((day) =>
-          MEALS.map((meal) => nutritionForItems(day.meals[meal], foodsById)),
+          MEALS.map((meal) =>
+            nutritionForItems(day.meals[meal], foodsById, recipesById),
+          ),
         ),
       ),
-    [state.days, foodsById],
+    [state.days, foodsById, recipesById],
   )
 
   const updateDay = (updater: (day: DayPlan) => DayPlan) => {
@@ -166,6 +176,7 @@ export function PlannerPage({
         <div>
           <span>Total energy</span>
           <strong>{round(tripNutrition.calories).toLocaleString()} kcal</strong>
+          {unresolvedItems.length > 0 && <small>Plan totals incomplete</small>}
         </div>
         <div>
           <span>Food weight</span>
@@ -186,8 +197,8 @@ export function PlannerPage({
           <p>
             <strong>Nutrition totals are incomplete.</strong>{' '}
             {unresolvedItems.length} Plan item
-            {unresolvedItems.length === 1 ? '' : 's'} reference unavailable
-            Food and are excluded from nutrition totals.
+            {unresolvedItems.length === 1 ? '' : 's'}             reference unavailable or incomplete targets and are excluded from
+            complete nutrition totals.
           </p>
         </div>
       )}
@@ -268,12 +279,25 @@ export function PlannerPage({
           accent="#9d6a35"
         />
       </section>
+      {activeDayUnresolved.length > 0 && (
+        <p className="recipe-warning" role="status">
+          Trail-day totals incomplete — showing nutrition from available Foods
+          and Recipe ingredients only.
+        </p>
+      )}
 
       <div className="planner-grid">
         <section className="meal-list">
           {MEALS.map((meal) => {
             const mealItems = activeDay.meals[meal]
-            const nutrition = nutritionForItems(mealItems, foodsById)
+            const mealIncomplete = activeDayUnresolved.some(
+              (item) => item.meal === meal,
+            )
+            const nutrition = nutritionForItems(
+              mealItems,
+              foodsById,
+              recipesById,
+            )
             const isExpanded = expandedMeals.has(meal)
             return (
               <article className="meal-card" key={meal} aria-label={meal}>
@@ -302,7 +326,10 @@ export function PlannerPage({
                   </div>
                   <div className="meal-summary">
                     <strong>{round(nutrition.calories)} kcal</strong>
-                    <span>{round(nutrition.weightOz, 1)} oz</span>
+                    <span>
+                      {round(nutrition.weightOz, 1)} oz
+                      {mealIncomplete && ' · Meal totals incomplete'}
+                    </span>
                   </div>
                   <ChevronDown
                     className={isExpanded ? 'rotated' : ''}
@@ -316,12 +343,16 @@ export function PlannerPage({
                     )}
                     <div className="meal-items">
                       {mealItems.map((item) => {
-                        const food = foodsById.get(item.foodId)
+                        const resolved = resolvePlanItem(
+                          item,
+                          foodsById,
+                          recipesById,
+                        )
                         return (
                           <MealPlanItem
                             key={`${item.id}:${item.quantity}`}
                             item={item}
-                            food={food}
+                            resolved={resolved}
                             foods={foods}
                             onQuantity={(quantity) =>
                               updateDay((day) => ({
@@ -343,7 +374,13 @@ export function PlannerPage({
                                   ...day.meals,
                                   [meal]: day.meals[meal].map((candidate) =>
                                     candidate.id === item.id
-                                      ? { ...candidate, foodId }
+                                      ? {
+                                          ...candidate,
+                                          target: {
+                                            kind: 'food',
+                                            id: foodId,
+                                          },
+                                        }
                                       : candidate,
                                   ),
                                 },
@@ -364,9 +401,11 @@ export function PlannerPage({
                         )
                       })}
                     </div>
-                    <FoodPicker
+                    <PlanTargetPicker
                       foods={foods}
-                      onSelect={(food) =>
+                      foodsById={foodsById}
+                      recipes={state.recipes}
+                      onSelect={(target) =>
                         updateDay((day) => ({
                           ...day,
                           meals: {
@@ -375,14 +414,14 @@ export function PlannerPage({
                               ...day.meals[meal],
                               {
                                 id: crypto.randomUUID(),
-                                foodId: food.id,
+                                target,
                                 quantity: 1,
                               },
                             ],
                           },
                         }))
                       }
-                      placeholder={`Add food to ${meal.toLowerCase()}…`}
+                      placeholder={`Add Food or Recipe to ${meal.toLowerCase()}…`}
                     />
                   </div>
                 )}
@@ -473,37 +512,45 @@ export function PlannerPage({
 
 function MealPlanItem({
   item,
-  food,
+  resolved,
   foods,
   onQuantity,
   onReplace,
   onRemove,
 }: {
   item: PlanItem
-  food: Food | undefined
+  resolved: ReturnType<typeof resolvePlanItem>
   foods: Food[]
   onQuantity: (quantity: number) => void
   onReplace: (foodId: string) => void
   onRemove: () => void
 }) {
   const [replacing, setReplacing] = useState(false)
-  const label = food?.name ?? `Unavailable food ${item.foodId}`
+  const targetId = item.target.id
+  const isFoodTarget = item.target.kind === 'food'
+  const label = resolved?.label ??
+    `${isFoodTarget ? 'Unavailable food' : 'Recipe'} ${targetId}`
 
   return (
     <>
-      <div className={`meal-item ${food ? '' : 'unresolved-item'}`}>
+      <div
+        className={`meal-item ${
+          resolved?.complete ? '' : 'unresolved-item'
+        }`}
+      >
         <div className="food-avatar">
-          {food ? (food.category ?? 'F').slice(0, 1) : <AlertTriangle size={14} />}
+          {resolved ? resolved.kind.slice(0, 1).toUpperCase() : <AlertTriangle size={14} />}
         </div>
         <div className="meal-item-name">
-          <strong>{food?.name ?? 'Unavailable food'}</strong>
+          <strong>{resolved?.label ?? `Unavailable ${isFoodTarget ? 'Food' : 'Recipe'}`}</strong>
           <span>
-            {food
-              ? `${round((food.calories ?? 0) * item.quantity)} kcal · ${round(
-                  (food.servingOz ?? 0) * item.quantity,
-                  1,
-                )} oz`
-              : `Food ID: ${item.foodId}`}
+            {resolved
+              ? `${resolved.kind === 'recipe' ? 'Recipe · ' : ''}${round(
+                  resolved.nutrition.calories,
+                )} kcal · ${round(resolved.nutrition.weightOz, 1)} oz${
+                  resolved.complete ? '' : ' · Incomplete'
+                }`
+              : `${isFoodTarget ? 'Food' : 'Recipe'} ID: ${targetId}`}
           </span>
         </div>
         <QuantityInput
@@ -512,7 +559,7 @@ function MealPlanItem({
           onCommit={onQuantity}
         />
         <div className="meal-item-actions">
-          {!food && (
+          {!resolved && isFoodTarget && (
             <button
               className="button button-quiet item-action"
               type="button"
@@ -532,11 +579,11 @@ function MealPlanItem({
           </button>
         </div>
       </div>
-      {!food && replacing && (
+      {!resolved && isFoodTarget && replacing && (
         <div className="replacement-picker">
           <FoodPicker
             foods={foods}
-            placeholder={`Choose replacement for ${item.foodId}…`}
+            placeholder={`Choose replacement for ${targetId}…`}
             onSelect={(replacement) => {
               onReplace(replacement.id)
               setReplacing(false)

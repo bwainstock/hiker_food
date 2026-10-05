@@ -1,6 +1,11 @@
-import type { Food, PlannerState } from '../types'
+import type {
+  Food,
+  PlannerState,
+  RecipeOnlyIngredient,
+} from '../types'
 import { MEALS } from '../types'
 import { EN_US_COLLATOR } from './catalog'
+import { resolveRecipe } from './recipe'
 
 export interface ShoppingRow {
   food: Food
@@ -12,7 +17,24 @@ export interface UnresolvedShoppingRow {
   foodId: string
   quantity: number
   itemCount: number
+  directItemCount: number
   locations: string[]
+  recipeSources: {
+    id: string
+    name: string
+  }[]
+}
+
+export interface RecipeOnlyShoppingRow {
+  recipeId: string
+  ingredientId: string
+  name: string
+  sourceRecipe: string
+  placementQuantity: number
+  itemCount: number
+  weightGrams: number
+  calories: number
+  ingredient: RecipeOnlyIngredient
 }
 
 export function aggregateShoppingList(
@@ -21,21 +43,83 @@ export function aggregateShoppingList(
 ) {
   const quantities = new Map<
     string,
-    { quantity: number; itemCount: number; locations: string[] }
+    {
+      quantity: number
+      itemCount: number
+      directItemCount: number
+      locations: string[]
+      recipeSources: {
+        id: string
+        name: string
+      }[]
+    }
   >()
+  const recipeOnly = new Map<
+    string,
+    Omit<RecipeOnlyShoppingRow, 'weightGrams' | 'calories'>
+  >()
+  const recipesById = new Map(state.recipes.map((recipe) => [recipe.id, recipe]))
+
+  const addFoodContribution = (
+    foodId: string,
+    quantity: number,
+    location: string,
+    recipeSource?: { id: string; name: string },
+  ) => {
+    const current = quantities.get(foodId) ?? {
+      quantity: 0,
+      itemCount: 0,
+      directItemCount: 0,
+      locations: [],
+      recipeSources: [],
+    }
+    current.quantity += quantity
+    current.itemCount += 1
+    if (!recipeSource) current.directItemCount += 1
+    if (!current.locations.includes(location)) current.locations.push(location)
+    if (
+      recipeSource &&
+      !current.recipeSources.some(({ id }) => id === recipeSource.id)
+    ) {
+      current.recipeSources.push(recipeSource)
+    }
+    quantities.set(foodId, current)
+  }
 
   state.days.forEach((day) => {
     MEALS.forEach((meal) => {
       day.meals[meal].forEach((item) => {
-        const current = quantities.get(item.foodId) ?? {
-          quantity: 0,
-          itemCount: 0,
-          locations: [],
+        const location = `${day.name} · ${meal}`
+        if (item.target.kind === 'food') {
+          addFoodContribution(item.target.id, item.quantity, location)
+          return
         }
-        current.quantity += item.quantity
-        current.itemCount += 1
-        current.locations.push(`${day.name} · ${meal}`)
-        quantities.set(item.foodId, current)
+        const recipe = recipesById.get(item.target.id)
+        if (!recipe) return
+        const resolved = resolveRecipe(recipe, foodsById)
+        resolved.foodContributions.forEach((ingredient) =>
+          addFoodContribution(
+            ingredient.foodId,
+            ingredient.quantity * item.quantity,
+            location,
+            { id: recipe.id, name: recipe.name },
+          ),
+        )
+        resolved.recipeOnlyContributions.forEach((ingredient) => {
+          const key = `${recipe.id}:${ingredient.id}`
+          const current = recipeOnly.get(key) ?? {
+            recipeId: recipe.id,
+            ingredientId: ingredient.id,
+            name: ingredient.name,
+            sourceRecipe: recipe.name,
+            placementQuantity: 0,
+            itemCount: 0,
+            ingredient,
+          }
+          current.placementQuantity += item.quantity
+          current.itemCount += 1
+          recipeOnly.set(key, current)
+        })
       })
     })
   })
@@ -62,6 +146,23 @@ export function aggregateShoppingList(
       EN_US_COLLATOR.compare(a.food.id, b.food.id),
   )
   unresolved.sort((a, b) => EN_US_COLLATOR.compare(a.foodId, b.foodId))
+  const recipeOnlyRows = [...recipeOnly.values()]
+    .map((row) => ({
+      ...row,
+      weightGrams: row.ingredient.weightGrams * row.placementQuantity,
+      calories: row.ingredient.calories * row.placementQuantity,
+    }))
+    .sort(
+      (a, b) =>
+        EN_US_COLLATOR.compare(a.sourceRecipe, b.sourceRecipe) ||
+        EN_US_COLLATOR.compare(a.name, b.name) ||
+        EN_US_COLLATOR.compare(a.ingredientId, b.ingredientId),
+    )
 
-  return { rows, unresolved }
+  return {
+    complete: unresolved.length === 0,
+    rows,
+    recipeOnlyRows,
+    unresolved,
+  }
 }

@@ -6,7 +6,12 @@ import {
   PLANNER_STORAGE_KEY,
   PREVIOUS_STATE_STORAGE_KEY,
 } from '../../src/lib/state'
-import type { DayPlan, Food, PlannerState } from '../../src/types'
+import type {
+  DayPlan,
+  Food,
+  PlannerState,
+  Recipe,
+} from '../../src/types'
 
 const INIT_MARKER = 'trail-rations-e2e-initialized'
 
@@ -21,7 +26,66 @@ export function emptyState(
   day = fixedDay(),
   customFoods: Food[] = [],
 ): PlannerState {
-  return { days: [day], customFoods }
+  return { days: [day], customFoods, recipes: [] }
+}
+
+export function stateWithRecipe({
+  placed = false,
+}: { placed?: boolean } = {}): PlannerState {
+  const recipe: Recipe = {
+    id: 'recipe-trail-bowl',
+    name: 'Trail bowl',
+    category: 'Dinner',
+    instructions: 'Stir together',
+    ingredients: [
+      {
+        kind: 'food',
+        foodId: 'justin-s-classic-peanut-butter-19',
+        quantity: 1,
+      },
+      {
+        kind: 'recipe-only',
+        id: 'cocoa',
+        name: 'Cocoa powder',
+        weightGrams: 10,
+        calories: 40,
+        fat: 1,
+        carbs: 5,
+        protein: 2,
+        fiber: 1,
+        sugar: 0,
+        sodium: 0,
+        potassium: 0,
+      },
+    ],
+  }
+  const state = emptyState()
+  state.recipes = [recipe]
+  if (placed) {
+    state.days[0].meals.Dinner.push({
+      id: 'recipe-placement',
+      target: { kind: 'recipe', id: recipe.id },
+      quantity: 2,
+    })
+  }
+  return state
+}
+
+export function stateWithIncompleteRecipe(): PlannerState {
+  const state = stateWithRecipe({ placed: true })
+  state.recipes[0] = {
+    ...state.recipes[0],
+    name: 'Incomplete trail bowl',
+    ingredients: [
+      ...state.recipes[0].ingredients,
+      {
+        kind: 'food',
+        foodId: 'retired-recipe-food',
+        quantity: 1.5,
+      },
+    ],
+  }
+  return state
 }
 
 export async function launchWithState(page: Page, state: PlannerState) {
@@ -37,7 +101,7 @@ export async function launchWithState(page: Page, state: PlannerState) {
       marker: INIT_MARKER,
       currentKey: PLANNER_STORAGE_KEY,
       previousKey: PREVIOUS_STATE_STORAGE_KEY,
-      serialized: JSON.stringify({ schemaVersion: 1, state }),
+      serialized: JSON.stringify({ schemaVersion: 2, state }),
     },
   )
   await page.goto('/')

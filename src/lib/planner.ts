@@ -49,10 +49,10 @@ export function createStarterState(foods: Food[]): PlannerState {
   STARTER_PLAN_ITEMS.forEach(([meal, foodId, quantity]) => {
     day.meals[meal].push({
       id: crypto.randomUUID(),
-      foodId,
+      target: { kind: 'food', id: foodId },
       quantity,
     })
   })
 
-  return plannerStateSchema.parse({ days: [day], customFoods: [] })
+  return plannerStateSchema.parse({ days: [day], customFoods: [], recipes: [] })
 }

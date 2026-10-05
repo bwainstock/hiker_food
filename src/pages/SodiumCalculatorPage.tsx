@@ -8,15 +8,18 @@ import {
   round,
 } from '../lib/nutrition'
 import { calculateSupplementScenario } from '../lib/supplements'
-import type { Food, PlannerState } from '../types'
+import { resolveRecipe } from '../lib/recipe'
+import type { Food, PlannerState, Recipe } from '../types'
 import { MEALS } from '../types'
 
 export function SodiumCalculatorPage({
   state,
   foodsById,
+  recipesById,
 }: {
   state: PlannerState
   foodsById: Map<string, Food>
+  recipesById: Map<string, Recipe>
 }) {
   const [temperature, setTemperature] = useState(25)
   const [dayId, setDayId] = useState(state.days[0]?.id ?? '')
@@ -31,19 +34,30 @@ export function SodiumCalculatorPage({
     () =>
       day
         ? addNutrition(
-            ...MEALS.map((meal) => nutritionForItems(day.meals[meal], foodsById)),
+            ...MEALS.map((meal) =>
+              nutritionForItems(day.meals[meal], foodsById, recipesById),
+            ),
           )
         : addNutrition(),
-    [day, foodsById],
+    [day, foodsById, recipesById],
   )
   const unresolvedItems = useMemo(
     () =>
       day
         ? MEALS.flatMap((meal) =>
-            day.meals[meal].filter((item) => !foodsById.has(item.foodId)),
-          )
+          day.meals[meal].filter(
+            (item) =>
+              item.target.kind === 'food'
+                ? !foodsById.has(item.target.id)
+                : !recipesById.has(item.target.id) ||
+                  !resolveRecipe(
+                    recipesById.get(item.target.id)!,
+                    foodsById,
+                  ).complete,
+          ),
+        )
         : [],
-    [day, foodsById],
+    [day, foodsById, recipesById],
   )
   const totalsIncomplete = unresolvedItems.length > 0
 
