@@ -6,7 +6,7 @@ export interface RecipeDeletionImpact {
 
 export interface CustomFoodDeletionImpact {
   planItemCount: number
-  recipeIngredientCount: number
+  foodIngredientCount: number
 }
 
 function countTargetedPlanItems(
@@ -75,7 +75,7 @@ export function analyzeCustomFoodDeletion(
 ): CustomFoodDeletionImpact {
   return {
     planItemCount: countTargetedPlanItems(state, 'food', foodId),
-    recipeIngredientCount: state.recipes.reduce(
+    foodIngredientCount: state.recipes.reduce(
       (total, recipe) =>
         total +
         recipe.ingredients.filter(

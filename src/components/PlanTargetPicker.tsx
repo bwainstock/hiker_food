@@ -4,7 +4,7 @@ import { searchFoods } from '../lib/catalog'
 import {
   filterRecipes,
   getRecipePlacementEligibility,
-  resolveFoodRecipe,
+  resolveRecipe,
 } from '../lib/recipe'
 import { round } from '../lib/nutrition'
 import type { Food, PlanItem, Recipe } from '../types'
@@ -58,7 +58,7 @@ export function PlanTargetPicker({
       {open && (
         <div className="food-results" id={resultsId} role="listbox">
           {recipeResults.map((recipe) => {
-            const resolved = resolveFoodRecipe(recipe, foodsById)
+            const resolved = resolveRecipe(recipe, foodsById)
             const eligibility = getRecipePlacementEligibility(
               recipe,
               foodsById,

@@ -42,12 +42,24 @@ test('incomplete Recipe stays placed, blocks new placement, and is repaired by k
   await expect(
     page.getByText('Shopping and nutrition totals are incomplete.'),
   ).toBeVisible()
-  const unavailable = page.getByText('retired-recipe-food').locator('..')
-  await expect(page.getByText('3', { exact: true })).toBeVisible()
+  const unavailable = page.getByRole('group', {
+    name: 'Unavailable food retired-recipe-food',
+  })
+  await expect(unavailable).toContainText('3')
   await expect(unavailable).toContainText('From Recipe: Incomplete trail bowl')
   await expect(unavailable).toContainText('Day 1 · Dinner')
+  await expect(unavailable.getByRole('button', { name: 'Replace' })).toHaveCount(0)
+  await expect(
+    unavailable.getByRole('button', {
+      name: 'Remove unavailable food retired-recipe-food',
+    }),
+  ).toHaveCount(0)
+  await unavailable
+    .getByRole('button', {
+      name: 'Edit Recipes using unavailable food retired-recipe-food',
+    })
+    .click()
 
-  await navigateTo(page, 'Recipes')
   const recipe = page.getByRole('article', { name: 'Incomplete trail bowl' })
   await expect(recipe).toContainText('Known totals only')
   await expect(recipe).toContainText('retired-recipe-food')
@@ -84,6 +96,37 @@ test('incomplete Recipe stays placed, blocks new placement, and is repaired by k
   await expect(
     page.getByText('Shopping and nutrition totals are incomplete.'),
   ).toHaveCount(0)
+})
+
+test('mixed direct and Recipe unavailable Food references require Recipe repair first', async ({
+  page,
+}) => {
+  const state = stateWithIncompleteRecipe()
+  state.days[0].meals.Dinner.push({
+    id: 'direct-unavailable',
+    target: { kind: 'food', id: 'retired-recipe-food' },
+    quantity: 2,
+  })
+  await launchWithState(page, state)
+
+  await navigateTo(page, 'Shopping list')
+  const unavailable = page.getByRole('group', {
+    name: 'Unavailable food retired-recipe-food',
+  })
+  await expect(unavailable).toContainText('5')
+  await expect(unavailable).toContainText('2 Plan items')
+  await expect(unavailable).toContainText('From Recipe: Incomplete trail bowl')
+  await expect(unavailable.getByRole('button', { name: 'Replace' })).toHaveCount(0)
+  await expect(
+    unavailable.getByRole('button', {
+      name: 'Remove unavailable food retired-recipe-food',
+    }),
+  ).toHaveCount(0)
+  await expect(
+    unavailable.getByText(
+      'Repair the Food ingredient in Incomplete trail bowl before repairing direct Plan items.',
+    ),
+  ).toBeVisible()
 })
 
 test('Recipe quantity and saved edits update every projection', async ({
@@ -241,7 +284,7 @@ test('custom Food deletion separates direct and Recipe impact', async ({
     name: 'Delete Delete Test Shared Food?',
   })
   await expect(dialog).toContainText('1 direct Plan item')
-  await expect(dialog).toContainText('1 Recipe Food ingredient')
+  await expect(dialog).toContainText('1 Food ingredient')
   await expect(dialog).toContainText(
     'Direct placements will be removed. Recipe references will remain unavailable and repairable.',
   )
@@ -530,11 +573,11 @@ test('version 2 export, atomic import, invalid import, and Shopping-list restora
       name: /Spice mix.*From Canyon bowl.*9.2 g.*12 kcal/,
     }),
   ).toBeVisible()
-  await expect(
-    page.getByText(
-      /Food ID: retired-topping.*Canyon menu · Lunch · Canyon bowl/,
-    ),
-  ).toBeVisible()
+  const unavailableTopping = page.getByRole('group', {
+    name: 'Unavailable food retired-topping',
+  })
+  await expect(unavailableTopping).toContainText('Canyon menu · Lunch')
+  await expect(unavailableTopping).toContainText('From Recipe: Canyon bowl')
 
   await navigateTo(page, 'Meal planner')
   const invalidState = emptyState()

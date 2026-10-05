@@ -9,7 +9,7 @@ import {
   removeFoodIngredient,
   removeRecipeOnlyIngredient,
   replaceFoodIngredient,
-  resolveFoodRecipe,
+  resolveRecipe,
   saveRecipeDraft,
   updateRecipeOnlyIngredient,
   updateFoodIngredientQuantity,
@@ -65,7 +65,7 @@ describe('Food-based Recipe resolution', () => {
       ],
     ])
 
-    expect(resolveFoodRecipe(recipe, foodsById)).toMatchObject({
+    expect(resolveRecipe(recipe, foodsById)).toMatchObject({
       ingredientCount: 3,
       complete: true,
       nutrition: {
@@ -83,7 +83,7 @@ describe('Food-based Recipe resolution', () => {
     })
 
     foodsById.set('food-1', makeFood({ calories: 120 }))
-    expect(resolveFoodRecipe(recipe, foodsById).nutrition.calories).toBe(621.4)
+    expect(resolveRecipe(recipe, foodsById).nutrition.calories).toBe(621.4)
   })
 
   it('returns known totals and unavailable-reference details for an incomplete Recipe', () => {
@@ -99,7 +99,7 @@ describe('Food-based Recipe resolution', () => {
     }
 
     expect(
-      resolveFoodRecipe(recipe, new Map([['food-1', makeFood()]])),
+      resolveRecipe(recipe, new Map([['food-1', makeFood()]])),
     ).toMatchObject({
       complete: false,
       nutrition: { calories: 150, sodium: 300 },
@@ -138,7 +138,7 @@ describe('Food-based Recipe resolution', () => {
       { kind: 'food', foodId: 'food-1', quantity: 2.5 },
     ])
     expect(
-      resolveFoodRecipe(
+      resolveRecipe(
         { ...recipe, ingredients: draft.ingredients },
         new Map([['food-1', makeFood()]]),
       ).complete,

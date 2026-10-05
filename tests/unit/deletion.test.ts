@@ -67,7 +67,7 @@ describe('Recipe deletion', () => {
 })
 
 describe('custom Food deletion', () => {
-  it('reports direct Plan-item and Recipe Food-ingredient references separately', () => {
+  it('reports direct Plan-item and Food-ingredient references separately', () => {
     const customFood = makeFood({
       id: 'custom-food-1',
       custom: true,
@@ -105,11 +105,11 @@ describe('custom Food deletion', () => {
 
     expect(analyzeCustomFoodDeletion(state, customFood.id)).toEqual({
       planItemCount: 1,
-      recipeIngredientCount: 2,
+      foodIngredientCount: 2,
     })
   })
 
-  it('removes the custom Food and direct placements while preserving Recipe Food IDs', () => {
+  it('removes the custom Food and direct placements while preserving Food ingredient IDs', () => {
     const customFood = makeFood({
       id: 'custom-food-1',
       custom: true,

@@ -241,7 +241,7 @@ test('custom Food creation and in-use deletion safety @smoke', async ({
     name: 'Delete Test Kitchen Cocoa Couscous?',
   })
   await expect(deleteDialog).toContainText('1 direct Plan item')
-  await expect(deleteDialog).toContainText('0 Recipe Food ingredients')
+  await expect(deleteDialog).toContainText('0 Food ingredients')
   await expect(deleteDialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
   await deleteDialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(

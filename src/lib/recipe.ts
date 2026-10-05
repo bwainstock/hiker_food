@@ -1,6 +1,6 @@
 import type {
   Food,
-  FoodRecipeIngredient,
+  FoodIngredient,
   Nutrition,
   PlanItem,
   PlannerState,
@@ -18,13 +18,13 @@ import {
 } from './nutrition'
 import { recipeIngredientSchema } from './schemas'
 
-export interface ResolvedFoodRecipe {
+export interface ResolvedRecipe {
   ingredientCount: number
   complete: boolean
   nutrition: Nutrition
   unavailableFoodIds: string[]
-  unavailableFoodReferences: FoodRecipeIngredient[]
-  foodContributions: FoodRecipeIngredient[]
+  unavailableFoodReferences: FoodIngredient[]
+  foodContributions: FoodIngredient[]
   recipeOnlyContributions: RecipeOnlyIngredient[]
 }
 
@@ -135,12 +135,12 @@ export function replaceFoodIngredient(
 ): RecipeDraft {
   if (oldFoodId === newFoodId) return draft
   const replaced = draft.ingredients.find(
-    (ingredient): ingredient is FoodRecipeIngredient =>
+    (ingredient): ingredient is FoodIngredient =>
       ingredient.kind === 'food' && ingredient.foodId === oldFoodId,
   )
   if (!replaced) return draft
   const existing = draft.ingredients.find(
-    (ingredient): ingredient is FoodRecipeIngredient =>
+    (ingredient): ingredient is FoodIngredient =>
       ingredient.kind === 'food' && ingredient.foodId === newFoodId,
   )
 
@@ -276,12 +276,12 @@ export function formatRecipeCalories(calories: number) {
   return `${round(calories)} kcal`
 }
 
-export function resolveFoodRecipe(
+export function resolveRecipe(
   recipe: Recipe,
   foodsById: ReadonlyMap<string, Food>,
-): ResolvedFoodRecipe {
+): ResolvedRecipe {
   const foodIngredients = recipe.ingredients.filter(
-    (ingredient): ingredient is FoodRecipeIngredient =>
+    (ingredient): ingredient is FoodIngredient =>
       ingredient.kind === 'food',
   )
   const resolvedFoods = foodIngredients.flatMap((ingredient) => {
@@ -325,7 +325,7 @@ export function getRecipePlacementEligibility(
   foodsById: ReadonlyMap<string, Food>,
 ) {
   const unavailableCount =
-    resolveFoodRecipe(recipe, foodsById).unavailableFoodReferences.length
+    resolveRecipe(recipe, foodsById).unavailableFoodReferences.length
   return unavailableCount === 0
     ? { eligible: true, reason: null }
     : {
@@ -356,7 +356,7 @@ export function resolvePlanItem(
 
   const recipe = recipesById.get(item.target.id)
   if (!recipe) return null
-  const resolved = resolveFoodRecipe(recipe, foodsById)
+  const resolved = resolveRecipe(recipe, foodsById)
   return {
     kind: 'recipe',
     id: recipe.id,

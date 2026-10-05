@@ -112,7 +112,7 @@ export const planItemQuantitySchema = finiteNumber
     'Enter a quantity in increments of 0.1.',
   )
 
-const foodRecipeIngredientSchema = z
+const foodIngredientSchema = z
   .object({
     kind: z.literal('food'),
     foodId: nonemptyString,
@@ -138,7 +138,7 @@ const recipeOnlyIngredientSchema = z
   .strict()
 
 export const recipeIngredientSchema = z.discriminatedUnion('kind', [
-  foodRecipeIngredientSchema,
+  foodIngredientSchema,
   recipeOnlyIngredientSchema,
 ])
 
