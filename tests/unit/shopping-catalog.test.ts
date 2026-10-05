@@ -37,10 +37,7 @@ describe('Shopping-list aggregation', () => {
     )
     const result = aggregateShoppingList(
       makeState(day),
-      new Map([
-        [sameNameA.id, sameNameA],
-        [sameNameB.id, sameNameB],
-      ]),
+      [sameNameA, sameNameB],
     )
     expect(result.rows).toHaveLength(2)
     expect(
@@ -65,7 +62,7 @@ describe('Shopping-list aggregation', () => {
         quantity: 2.3,
       },
     )
-    const result = aggregateShoppingList(makeState(day), new Map())
+    const result = aggregateShoppingList(makeState(day), [])
     expect(result.rows).toEqual([])
     expect(result.unresolved[0]).toMatchObject({
       foodId: 'missing',
@@ -87,7 +84,7 @@ describe('Shopping-list aggregation', () => {
 
       const result = aggregateShoppingList(
         state,
-        new Map([[food.id, food]]),
+        [food],
       )
 
       expect(result.rows).toHaveLength(1)
@@ -159,7 +156,7 @@ describe('Shopping-list aggregation', () => {
       const state = makeState(day)
       state.recipes = [recipeA, recipeB]
 
-      const result = aggregateShoppingList(state, new Map())
+      const result = aggregateShoppingList(state, [])
 
       expect(
         result.recipeOnlyRows.map((row) => [
@@ -190,7 +187,7 @@ describe('Shopping-list aggregation', () => {
     const state = makeState(day)
     state.recipes = [recipe]
 
-    const result = aggregateShoppingList(state, new Map())
+    const result = aggregateShoppingList(state, [])
 
     expect(result.complete).toBe(false)
     expect(result.unresolved).toEqual([

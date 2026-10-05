@@ -2,7 +2,6 @@ import type {
   Food,
   FoodIngredient,
   Nutrition,
-  PlanItem,
   PlannerState,
   Recipe,
   RecipeCategory,
@@ -21,20 +20,10 @@ import {
 } from './nutrition'
 import { recipeIngredientSchema } from './schemas'
 
-export interface ResolvedRecipe extends NutritionSummary {
+interface ResolvedRecipe extends NutritionSummary {
   ingredientCount: number
   complete: boolean
-  unavailableFoodIds: string[]
   unavailableFoodReferences: FoodIngredient[]
-  foodContributions: FoodIngredient[]
-  recipeOnlyContributions: RecipeOnlyIngredient[]
-}
-
-export interface ResolvedPlanItem extends NutritionSummary {
-  kind: PlanItem['target']['kind']
-  id: string
-  label: string
-  complete: boolean
 }
 
 export interface ResolvedRecipeIngredient extends NutritionSummary {
@@ -45,7 +34,7 @@ export interface ResolvedRecipeIngredient extends NutritionSummary {
   complete: boolean
 }
 
-export interface ResolvedRecipeDraft extends NutritionSummary {
+interface ResolvedRecipeDraft extends NutritionSummary {
   complete: boolean
   contributions: ResolvedRecipeIngredient[]
 }
@@ -436,9 +425,6 @@ export function resolveRecipe(
       : [],
   )
   const resolved = [...resolvedFoods, ...recipeOnlyNutrition]
-  const unavailableFoodIds = foodIngredients
-    .filter((ingredient) => !foodsById.has(ingredient.foodId))
-    .map((ingredient) => ingredient.foodId)
   const unavailableFoodReferences = foodIngredients.filter(
     (ingredient) => !foodsById.has(ingredient.foodId),
   )
@@ -449,7 +435,7 @@ export function resolveRecipe(
           known: { ...ALL_NUTRITION_KNOWN },
         }
       : addNutritionSummaries(...resolved)
-  if (unavailableFoodIds.length > 0) {
+  if (unavailableFoodReferences.length > 0) {
     Object.keys(summary.known).forEach((key) => {
       summary.known[key as keyof Nutrition] = false
     })
@@ -459,13 +445,7 @@ export function resolveRecipe(
     ingredientCount: recipe.ingredients.length,
     complete: Object.values(summary.known).every(Boolean),
     known: summary.known,
-    unavailableFoodIds,
     unavailableFoodReferences,
-    foodContributions: foodIngredients,
-    recipeOnlyContributions: recipe.ingredients.filter(
-      (ingredient): ingredient is RecipeOnlyIngredient =>
-        ingredient.kind === 'recipe-only',
-    ),
     nutrition: summary.nutrition,
   }
 }
@@ -486,58 +466,7 @@ export function getRecipePlacementEligibility(
       }
 }
 
-export function resolvePlanItem(
-  item: PlanItem,
-  foodsById: ReadonlyMap<string, Food>,
-  recipesById: ReadonlyMap<string, Recipe>,
-): ResolvedPlanItem | null {
-  if (item.target.kind === 'food') {
-    const food = foodsById.get(item.target.id)
-    if (!food) return null
-    const summary = nutritionSummaryForFood(food, item.quantity)
-    return {
-      kind: 'food',
-      id: food.id,
-      label: food.name,
-      complete: Object.values(summary.known).every(Boolean),
-      ...summary,
-    }
-  }
-
-  const recipe = recipesById.get(item.target.id)
-  if (!recipe) return null
-  const resolved = resolveRecipe(recipe, foodsById)
-  return {
-    kind: 'recipe',
-    id: recipe.id,
-    label: recipe.name,
-    complete: resolved.complete,
-    nutrition: scaleNutrition(resolved.nutrition, item.quantity),
-    known: resolved.known,
-  }
-}
-
-export function scaleNutrition(
-  nutrition: Nutrition,
-  quantity: number,
-): Nutrition {
-  const safeQuantity =
-    Number.isFinite(quantity) && quantity > 0 ? quantity : 0
-  return Object.fromEntries(
-    Object.entries(nutrition).map(([key, value]) => [
-      key,
-      value * safeQuantity,
-    ]),
-  ) as unknown as Nutrition
-}
-
-export function nutritionForRecipeOnlyIngredient(
-  ingredient: RecipeOnlyIngredient,
-): Nutrition {
-  return nutritionSummaryForRecipeOnlyIngredient(ingredient).nutrition
-}
-
-export function nutritionSummaryForRecipeOnlyIngredient(
+function nutritionSummaryForRecipeOnlyIngredient(
   ingredient: RecipeOnlyIngredient,
 ) {
   return {

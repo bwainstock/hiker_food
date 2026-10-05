@@ -1,11 +1,12 @@
 import type {
   Food,
+  Nutrition,
   PlannerState,
-  RecipeOnlyIngredient,
 } from '../types'
 import { MEALS } from '../types'
 import { EN_US_COLLATOR } from './catalog'
-import { resolveRecipe } from './recipe'
+import { EMPTY_NUTRITION, addNutrition } from './nutrition'
+import { interpretPlanItems } from './plan-item'
 
 export interface ShoppingRow {
   food: Food
@@ -34,13 +35,14 @@ export interface RecipeOnlyShoppingRow {
   itemCount: number
   weightGrams: number
   calories: number
-  ingredient: RecipeOnlyIngredient
+  nutrition: Nutrition
 }
 
 export function aggregateShoppingList(
   state: PlannerState,
-  foodsById: ReadonlyMap<string, Food>,
+  foods: readonly Food[],
 ) {
+  const foodsById = new Map(foods.map((food) => [food.id, food]))
   const quantities = new Map<
     string,
     {
@@ -54,11 +56,7 @@ export function aggregateShoppingList(
       }[]
     }
   >()
-  const recipeOnly = new Map<
-    string,
-    Omit<RecipeOnlyShoppingRow, 'weightGrams' | 'calories'>
-  >()
-  const recipesById = new Map(state.recipes.map((recipe) => [recipe.id, recipe]))
+  const recipeOnly = new Map<string, RecipeOnlyShoppingRow>()
 
   const addFoodContribution = (
     foodId: string,
@@ -86,42 +84,73 @@ export function aggregateShoppingList(
     quantities.set(foodId, current)
   }
 
-  state.days.forEach((day) => {
-    MEALS.forEach((meal) => {
-      day.meals[meal].forEach((item) => {
-        const location = `${day.name} · ${meal}`
-        if (item.target.kind === 'food') {
-          addFoodContribution(item.target.id, item.quantity, location)
-          return
-        }
-        const recipe = recipesById.get(item.target.id)
-        if (!recipe) return
-        const resolved = resolveRecipe(recipe, foodsById)
-        resolved.foodContributions.forEach((ingredient) =>
-          addFoodContribution(
-            ingredient.foodId,
-            ingredient.quantity * item.quantity,
-            location,
-            { id: recipe.id, name: recipe.name },
-          ),
-        )
-        resolved.recipeOnlyContributions.forEach((ingredient) => {
-          const key = `${recipe.id}:${ingredient.id}`
-          const current = recipeOnly.get(key) ?? {
-            recipeId: recipe.id,
-            ingredientId: ingredient.id,
-            name: ingredient.name,
-            sourceRecipe: recipe.name,
-            placementQuantity: 0,
-            itemCount: 0,
-            ingredient,
+  const placements = state.days.flatMap((day) =>
+    MEALS.flatMap((meal) =>
+      day.meals[meal].map((item) => ({
+        item,
+        location: `${day.name} · ${meal}`,
+      })),
+    ),
+  )
+  const interpretations = interpretPlanItems(
+    placements.map(({ item }) => item),
+    foods,
+    state.recipes,
+  )
+
+  interpretations.forEach((interpretation, index) => {
+    const { location } = placements[index]
+    const recipeSource =
+      interpretation.target.kind === 'recipe' && interpretation.label
+        ? {
+            id: interpretation.target.id,
+            name: interpretation.label,
           }
-          current.placementQuantity += item.quantity
-          current.itemCount += 1
-          recipeOnly.set(key, current)
-        })
-      })
+        : undefined
+
+    interpretation.contributions.forEach((contribution) => {
+      if (contribution.kind === 'food') {
+        addFoodContribution(
+          contribution.foodId,
+          contribution.quantity,
+          location,
+          recipeSource,
+        )
+        return
+      }
+
+      const current = recipeOnly.get(contribution.key) ?? {
+        recipeId: contribution.recipeId,
+        ingredientId: contribution.ingredientId,
+        name: contribution.name,
+        sourceRecipe: interpretation.label ?? '',
+        placementQuantity: 0,
+        itemCount: 0,
+        weightGrams: 0,
+        calories: 0,
+        nutrition: { ...EMPTY_NUTRITION },
+      }
+      current.placementQuantity += interpretation.quantity
+      current.itemCount += 1
+      current.weightGrams += contribution.weightGrams
+      current.calories += contribution.nutrition.calories
+      current.nutrition = addNutrition(
+        current.nutrition,
+        contribution.nutrition,
+      )
+      recipeOnly.set(contribution.key, current)
     })
+
+    if (
+      interpretation.target.kind === 'food' &&
+      !interpretation.available
+    ) {
+      addFoodContribution(
+        interpretation.target.id,
+        interpretation.quantity,
+        location,
+      )
+    }
   })
 
   const rows: ShoppingRow[] = []
@@ -146,18 +175,12 @@ export function aggregateShoppingList(
       EN_US_COLLATOR.compare(a.food.id, b.food.id),
   )
   unresolved.sort((a, b) => EN_US_COLLATOR.compare(a.foodId, b.foodId))
-  const recipeOnlyRows = [...recipeOnly.values()]
-    .map((row) => ({
-      ...row,
-      weightGrams: row.ingredient.weightGrams * row.placementQuantity,
-      calories: (row.ingredient.calories ?? 0) * row.placementQuantity,
-    }))
-    .sort(
-      (a, b) =>
-        EN_US_COLLATOR.compare(a.sourceRecipe, b.sourceRecipe) ||
-        EN_US_COLLATOR.compare(a.name, b.name) ||
-        EN_US_COLLATOR.compare(a.ingredientId, b.ingredientId),
-    )
+  const recipeOnlyRows = [...recipeOnly.values()].sort(
+    (a, b) =>
+      EN_US_COLLATOR.compare(a.sourceRecipe, b.sourceRecipe) ||
+      EN_US_COLLATOR.compare(a.name, b.name) ||
+      EN_US_COLLATOR.compare(a.ingredientId, b.ingredientId),
+  )
 
   return {
     complete: unresolved.length === 0,

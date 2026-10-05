@@ -123,7 +123,6 @@ function App() {
           state={state}
           setState={setState}
           foods={foods}
-          foodsById={foodsById}
           onEditRecipes={() => setRoute('recipes')}
         />
       )}
