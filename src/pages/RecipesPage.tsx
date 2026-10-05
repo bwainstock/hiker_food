@@ -3,6 +3,10 @@ import { useId, useMemo, useState } from 'react'
 import { FoodPicker } from '../components/FoodPicker'
 import { EmptyState, Modal } from '../components/Ui'
 import {
+  analyzeRecipeDeletion,
+  deleteRecipe,
+} from '../lib/deletion'
+import {
   addFoodIngredient,
   addRecipeOnlyIngredient,
   createRecipeDraft,
@@ -51,6 +55,7 @@ export function RecipesPage({
   foodsById: ReadonlyMap<string, Food>
 }) {
   const [editor, setEditor] = useState<RecipeEditor | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Recipe | null>(null)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<RecipeCategory | null>(null)
   const filteredRecipes = useMemo(
@@ -65,6 +70,17 @@ export function RecipesPage({
       title: `Edit ${recipe.name}`,
       draft: createRecipeDraft(recipe),
     })
+  const requestDelete = (recipe: Recipe) => {
+    const impact = analyzeRecipeDeletion(state, recipe.id)
+    if (impact.planItemCount === 0) {
+      setState((current) => deleteRecipe(current, recipe.id))
+      return
+    }
+    setPendingDelete(recipe)
+  }
+  const pendingImpact = pendingDelete
+    ? analyzeRecipeDeletion(state, pendingDelete.id)
+    : null
 
   if (state.recipes.length === 0 && !editor) {
     return (
@@ -144,6 +160,7 @@ export function RecipesPage({
               recipe={recipe}
               foodsById={foodsById}
               onEdit={() => editRecipe(recipe)}
+              onDelete={() => requestDelete(recipe)}
             />
           ))}
         </section>
@@ -173,6 +190,46 @@ export function RecipesPage({
           }}
         />
       )}
+      {pendingDelete && pendingImpact && (
+        <Modal
+          title={`Delete ${pendingDelete.name}?`}
+          onClose={() => setPendingDelete(null)}
+        >
+          <div className="modal-content">
+            <p>
+              This Recipe is used by{' '}
+              <strong>
+                {pendingImpact.planItemCount} Plan item
+                {pendingImpact.planItemCount === 1 ? '' : 's'}
+              </strong>
+              . Deleting it removes the Recipe and all of those placements.
+            </p>
+          </div>
+          <div className="modal-actions">
+            <button
+              className="button button-quiet"
+              type="button"
+              onClick={() => setPendingDelete(null)}
+              autoFocus
+            >
+              Cancel
+            </button>
+            <button
+              className="button button-primary danger-button"
+              type="button"
+              onClick={() => {
+                setState((current) =>
+                  deleteRecipe(current, pendingDelete.id),
+                )
+                setPendingDelete(null)
+              }}
+            >
+              Delete Recipe and {pendingImpact.planItemCount} Plan item
+              {pendingImpact.planItemCount === 1 ? '' : 's'}
+            </button>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -181,10 +238,12 @@ function RecipeCard({
   recipe,
   foodsById,
   onEdit,
+  onDelete,
 }: {
   recipe: Recipe
   foodsById: ReadonlyMap<string, Food>
   onEdit: () => void
+  onDelete: () => void
 }) {
   const summary = resolveFoodRecipe(recipe, foodsById)
   const { nutrition } = summary
@@ -214,14 +273,24 @@ function RecipeCard({
             {summary.ingredientCount === 1 ? '' : 's'} · One serving
           </p>
         </div>
-        <button
-          className="button button-secondary"
-          type="button"
-          onClick={onEdit}
-          aria-label={`Edit ${recipe.name}`}
-        >
-          <Pencil size={14} /> Edit
-        </button>
+        <div className="recipe-card-actions">
+          <button
+            className="button button-secondary"
+            type="button"
+            onClick={onEdit}
+            aria-label={`Edit ${recipe.name}`}
+          >
+            <Pencil size={14} /> Edit
+          </button>
+          <button
+            className="icon-button danger"
+            type="button"
+            onClick={onDelete}
+            aria-label={`Delete ${recipe.name}`}
+          >
+            <Trash2 size={15} />
+          </button>
+        </div>
       </div>
       {recipe.instructions && (
         <p className="recipe-instructions">{recipe.instructions}</p>

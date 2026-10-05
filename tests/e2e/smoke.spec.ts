@@ -240,7 +240,8 @@ test('custom Food creation and in-use deletion safety @smoke', async ({
   const deleteDialog = page.getByRole('dialog', {
     name: 'Delete Test Kitchen Cocoa Couscous?',
   })
-  await expect(deleteDialog).toContainText('1 Plan item')
+  await expect(deleteDialog).toContainText('1 direct Plan item')
+  await expect(deleteDialog).toContainText('0 Recipe Food ingredients')
   await expect(deleteDialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
   await deleteDialog.getByRole('button', { name: 'Cancel' }).click()
   await expect(
@@ -251,7 +252,9 @@ test('custom Food creation and in-use deletion safety @smoke', async ({
     .getByRole('button', { name: 'Delete Test Kitchen Cocoa Couscous' })
     .click()
   await page
-    .getByRole('button', { name: 'Delete Food and 1 reference' })
+    .getByRole('button', {
+      name: 'Delete Food and remove 1 direct Plan item',
+    })
     .click()
   await expect(
     page.getByText('Test Kitchen Cocoa Couscous', { exact: true }),
