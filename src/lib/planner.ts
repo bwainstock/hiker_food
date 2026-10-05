@@ -1,5 +1,15 @@
-import type { DayPlan, Food, MealName, PlannerState } from '../types'
+import type {
+  DayPlan,
+  Food,
+  MealName,
+  PlannerState,
+  Recipe,
+} from '../types'
 import { MEALS } from '../types'
+import {
+  interpretPlanItems,
+  type PlanItemInterpretation,
+} from './plan-item'
 import { plannerStateSchema } from './schemas'
 
 export const createEmptyMeals = () =>
@@ -16,6 +26,35 @@ export const createDay = (number: number): DayPlan => ({
   name: `Day ${number}`,
   meals: createEmptyMeals(),
 })
+
+export function interpretPlanDays(
+  days: readonly DayPlan[],
+  foods: readonly Food[],
+  recipes: readonly Recipe[],
+): Map<string, Record<MealName, PlanItemInterpretation[]>> {
+  const interpretations = interpretPlanItems(
+    days.flatMap((day) =>
+      MEALS.flatMap((meal) => day.meals[meal]),
+    ),
+    foods,
+    recipes,
+  )
+  const interpretationIterator = interpretations.values()
+
+  return new Map(
+    days.map((day) => [
+      day.id,
+      Object.fromEntries(
+        MEALS.map((meal) => [
+          meal,
+          day.meals[meal].map(
+            () => interpretationIterator.next().value!,
+          ),
+        ]),
+      ) as Record<MealName, PlanItemInterpretation[]>,
+    ]),
+  )
+}
 
 export const STARTER_PLAN_ITEMS = [
   ['Breakfast', 'backpacker-s-pantry-granola-with-bananas-milk-399', 1],
