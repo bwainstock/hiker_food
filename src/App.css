@@ -1889,6 +1889,209 @@
   font-size: 11px;
 }
 
+/* Recipes */
+
+.recipes-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.recipes-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.recipes-toolbar p {
+  color: #77837c;
+  font-size: 11px;
+}
+
+.recipe-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.recipe-card {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.recipe-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px;
+  border-bottom: 1px solid #edf0ed;
+}
+
+.recipe-card-header h2 {
+  color: var(--ink);
+  font-size: 17px;
+  letter-spacing: -0.3px;
+}
+
+.recipe-card-header p {
+  margin-top: 5px;
+  color: #7e8983;
+  font-size: 10px;
+}
+
+.recipe-warning {
+  margin: 14px 20px 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  color: #765126;
+  font-size: 9px;
+  background: #fbf2e2;
+}
+
+.recipe-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 8px 20px 18px;
+}
+
+.recipe-metrics > div {
+  min-width: 0;
+  padding: 11px 8px 8px 0;
+  border-bottom: 1px solid #edf0ed;
+}
+
+.recipe-metrics dt {
+  color: #8b9690;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.45px;
+  text-transform: uppercase;
+}
+
+.recipe-metrics dd {
+  overflow: hidden;
+  margin: 4px 0 0;
+  color: #3d4d45;
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recipe-form {
+  display: flex;
+  flex-direction: column;
+  gap: 21px;
+  padding: 22px;
+}
+
+.recipe-name-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #68766f;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.recipe-name-field input {
+  width: 100%;
+  height: 40px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 12px;
+  background: #fbfcf9;
+}
+
+.recipe-name-field input[aria-invalid='true'],
+.recipe-ingredient input[aria-invalid='true'] {
+  border-color: #bd6a64;
+}
+
+.recipe-ingredients {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.recipe-ingredients legend {
+  margin-bottom: 9px;
+  color: #68766f;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.recipe-ingredient-list {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.recipe-ingredient {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 34px;
+  align-items: start;
+  gap: 10px;
+  padding: 11px;
+  border-bottom: 1px solid #edf0ed;
+}
+
+.recipe-ingredient:last-child {
+  border: 0;
+}
+
+.recipe-ingredient > div,
+.recipe-ingredient label {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.recipe-ingredient strong {
+  overflow: hidden;
+  color: #35443c;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recipe-ingredient span,
+.recipe-ingredient label > span:first-child {
+  color: #8b9690;
+  font-size: 8px;
+}
+
+.recipe-ingredient input {
+  width: 72px;
+  height: 32px;
+  margin-top: 3px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink);
+  font-size: 10px;
+  background: #fbfcf9;
+}
+
+.recipe-ingredient .field-error {
+  margin-top: 4px;
+  color: #9c3e38;
+  white-space: normal;
+}
+
+.recipe-ingredient-error {
+  display: block;
+  margin-top: 8px;
+}
+
 @media (max-width: 1120px) {
   .stat-grid-four {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1908,6 +2111,10 @@
 
   .electrolyte-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .recipe-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -2135,6 +2342,10 @@
     justify-content: flex-end;
   }
 
+  .recipe-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .recovery-card {
     grid-template-columns: 1fr;
     padding: 23px;
@@ -2164,6 +2375,10 @@
     width: 38px;
     padding: 0;
     font-size: 0;
+  }
+
+  .recipe-ingredient {
+    grid-template-columns: minmax(0, 1fr) 75px 34px;
   }
 }
 

@@ -154,6 +154,7 @@ export type Route =
   | 'planner'
   | 'shopping'
   | 'foods'
+  | 'recipes'
   | 'electrolytes'
   | 'sodium'
   | 'guide'

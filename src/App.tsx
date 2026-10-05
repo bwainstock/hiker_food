@@ -10,6 +10,7 @@ import { ElectrolytesPage } from './pages/ElectrolytesPage'
 import { FoodLibraryPage } from './pages/FoodLibraryPage'
 import { GuidePage } from './pages/GuidePage'
 import { PlannerPage } from './pages/PlannerPage'
+import { RecipesPage } from './pages/RecipesPage'
 import { ShoppingPage } from './pages/ShoppingPage'
 import { SodiumCalculatorPage } from './pages/SodiumCalculatorPage'
 import type { Route } from './types'
@@ -28,6 +29,10 @@ const PAGE_META: Record<Route, { title: string; description: string }> = {
   foods: {
     title: 'Food library',
     description: 'Explore the workbook catalog or add your own trail staples.',
+  },
+  recipes: {
+    title: 'Recipes',
+    description: 'Build reusable one-serving Recipes from Foods in your library.',
   },
   electrolytes: {
     title: 'Electrolytes',
@@ -126,6 +131,14 @@ function App() {
           state={state}
           foods={foods}
           setState={setState}
+        />
+      )}
+      {route === 'recipes' && (
+        <RecipesPage
+          state={state}
+          setState={setState}
+          foods={foods}
+          foodsById={foodsById}
         />
       )}
       {route === 'electrolytes' && <ElectrolytesPage />}
