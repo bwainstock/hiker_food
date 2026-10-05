@@ -21,10 +21,12 @@ npm run build
 npm run preview
 ```
 
-Plans and custom foods are stored in the browser's local storage. Use **Export**
-in the planner to download a versioned JSON backup. **Import**, **Reset**, and
-**Previous** provide previewed, one-step recovery operations without merging
-data.
+Plans, custom Foods, and Recipes are stored in the browser's local storage. Use
+**Export** in the planner to download a schema-version-2 JSON backup containing
+the complete Plan, including Recipe ingredients and Food-or-Recipe Plan-item
+targets. **Import**, **Reset**, and **Previous** provide previewed, one-step
+recovery operations without merging data. Legacy unversioned and version-1
+backups remain importable and migrate with no Recipes.
 
 ## Deploy
 

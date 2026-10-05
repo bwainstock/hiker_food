@@ -93,8 +93,20 @@ export function RecoveryScreen({
                 <dd>{preview.customFoods}</dd>
               </div>
               <div>
+                <dt>Recipes</dt>
+                <dd>{preview.recipes}</dd>
+              </div>
+              <div>
                 <dt>Unresolved items</dt>
                 <dd>{preview.unresolvedItems}</dd>
+              </div>
+              <div>
+                <dt>Incomplete Recipes</dt>
+                <dd>{preview.incompleteRecipes}</dd>
+              </div>
+              <div>
+                <dt>Unavailable Recipe ingredients</dt>
+                <dd>{preview.unresolvedRecipeIngredients}</dd>
               </div>
             </dl>
           </div>

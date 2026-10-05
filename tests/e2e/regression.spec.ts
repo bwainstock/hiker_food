@@ -74,6 +74,24 @@ test('reset cancel/confirm, previous-state restore, and final-day invariant', as
     target: { kind: 'food', id: 'justin-s-classic-peanut-butter-19' },
     quantity: 1,
   })
+  original.recipes.push({
+    id: 'recipe-original',
+    name: 'Original recovery Recipe',
+    category: 'Dinner',
+    instructions: null,
+    ingredients: [
+      {
+        kind: 'food',
+        foodId: 'justin-s-classic-peanut-butter-19',
+        quantity: 1.2,
+      },
+    ],
+  })
+  original.days[0].meals.Dinner.push({
+    id: 'original-recipe-item',
+    target: { kind: 'recipe', id: 'recipe-original' },
+    quantity: 2,
+  })
   await launchWithState(page, original)
 
   await expect(
@@ -96,7 +114,9 @@ test('reset cancel/confirm, previous-state restore, and final-day invariant', as
   const previousDialog = page.getByRole('dialog', {
     name: 'Previous valid state',
   })
-  await expect(previousDialog).toContainText('1')
+  await expect(previousDialog.getByLabel('State preview')).toContainText(
+    'Recipes1',
+  )
   const [previousDownload] = await Promise.all([
     page.waitForEvent('download'),
     previousDialog.getByRole('button', { name: 'Download' }).click(),
@@ -112,6 +132,14 @@ test('reset cancel/confirm, previous-state restore, and final-day invariant', as
   await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
     '210 kcal',
   )
+  expect(
+    JSON.parse(
+      (await page.evaluate(
+        (key) => localStorage.getItem(key),
+        PLANNER_STORAGE_KEY,
+      )) ?? 'null',
+    ),
+  ).toEqual({ schemaVersion: 2, state: original })
 
   await page.getByRole('button', { name: 'Previous' }).click()
   await page
@@ -184,6 +212,39 @@ test('version 2 export, atomic import, invalid import, and Shopping-list restora
     target: { kind: 'food', id: customFood.id },
     quantity: 2,
   })
+  recognizable.recipes.push({
+    id: 'recipe-canyon-bowl',
+    name: 'Canyon bowl',
+    category: 'Dinner',
+    instructions: '',
+    ingredients: [
+      { kind: 'food', foodId: customFood.id, quantity: 1.2 },
+      {
+        kind: 'food',
+        foodId: 'retired-topping',
+        quantity: 0.4,
+      },
+      {
+        kind: 'recipe-only',
+        id: 'ingredient-spice',
+        name: 'Spice mix',
+        weightGrams: 4,
+        calories: 5,
+        fat: 0,
+        carbs: 1,
+        protein: 0,
+        fiber: 0,
+        sugar: 0,
+        sodium: 300,
+        potassium: 0,
+      },
+    ],
+  })
+  recognizable.days[0].meals.Lunch.push({
+    id: 'canyon-recipe-placement',
+    target: { kind: 'recipe', id: 'recipe-canyon-bowl' },
+    quantity: 2.3,
+  })
   await launchWithState(page, recognizable)
 
   const [exportDownload] = await Promise.all([
@@ -194,12 +255,9 @@ test('version 2 export, atomic import, invalid import, and Shopping-list restora
     'trail-rations-backup-v2.json',
   )
   const exported = await readDownload(exportDownload)
-  expect(JSON.parse(exported)).toMatchObject({
+  expect(JSON.parse(exported)).toEqual({
     schemaVersion: 2,
-    state: {
-      days: [{ name: 'Canyon menu' }],
-      customFoods: [{ id: 'custom-canyon-noodles' }],
-    },
+    state: recognizable,
   })
 
   await page.getByRole('button', { name: 'Reset' }).click()
@@ -213,11 +271,25 @@ test('version 2 export, atomic import, invalid import, and Shopping-list restora
   })
   const preview = page.getByRole('dialog', { name: 'Import this backup?' })
   await expect(preview).toContainText('version 2 backup')
-  await expect(preview.getByLabel('State preview')).toContainText('1')
+  await expect(preview.getByLabel('State preview')).toContainText('Recipes1')
+  await expect(preview.getByLabel('State preview')).toContainText(
+    'Incomplete Recipes1',
+  )
+  await expect(preview.getByLabel('State preview')).toContainText(
+    'Unavailable Recipe ingredients1',
+  )
   await preview
     .getByRole('button', { name: 'Replace current state' })
     .click()
   await expect(page.getByLabel('Day name')).toHaveValue('Canyon menu')
+  expect(
+    JSON.parse(
+      (await page.evaluate(
+        (key) => localStorage.getItem(key),
+        PLANNER_STORAGE_KEY,
+      )) ?? 'null',
+    ),
+  ).toEqual({ schemaVersion: 2, state: recognizable })
   await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
     '1,000 kcal',
   )
@@ -230,7 +302,16 @@ test('version 2 export, atomic import, invalid import, and Shopping-list restora
   ).toBeVisible()
 
   await navigateTo(page, 'Meal planner')
-  const invalidRaw = '{"schemaVersion":1,"state":{"days":[],"customFoods":[]}}'
+  const invalidState = emptyState()
+  invalidState.days[0].meals.Dinner.push({
+    id: 'invalid-recipe-placement',
+    target: { kind: 'recipe', id: 'missing-recipe' },
+    quantity: 1,
+  })
+  const invalidRaw = JSON.stringify({
+    schemaVersion: 2,
+    state: invalidState,
+  })
   await selectImportFile(page, {
     name: 'bad.json',
     mimeType: 'application/json',
@@ -240,6 +321,9 @@ test('version 2 export, atomic import, invalid import, and Shopping-list restora
     name: 'Backup could not be imported',
   })
   await expect(invalidDialog).toContainText('Current data was not changed')
+  await expect(invalidDialog).toContainText(
+    'state.days[0].meals.Dinner[0].target.id',
+  )
   const [invalidDownload] = await Promise.all([
     page.waitForEvent('download'),
     invalidDialog
@@ -251,6 +335,40 @@ test('version 2 export, atomic import, invalid import, and Shopping-list restora
     .getByRole('button', { name: 'Keep current data' })
     .click()
   await expect(page.getByLabel('Day name')).toHaveValue('Canyon menu')
+
+  const futureRaw = JSON.stringify({
+    schemaVersion: 99,
+    state: emptyState(fixedDay('future-day', 'Future menu')),
+  })
+  await selectImportFile(page, {
+    name: 'future.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(futureRaw),
+  })
+  const futureDialog = page.getByRole('dialog', {
+    name: 'Backup could not be imported',
+  })
+  await expect(futureDialog).toContainText(
+    'Schema version 99 is not supported.',
+  )
+  const [futureDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    futureDialog
+      .getByRole('button', { name: 'Download invalid file' })
+      .click(),
+  ])
+  expect(await readDownload(futureDownload)).toBe(futureRaw)
+  await futureDialog
+    .getByRole('button', { name: 'Keep current data' })
+    .click()
+  expect(
+    JSON.parse(
+      (await page.evaluate(
+        (key) => localStorage.getItem(key),
+        PLANNER_STORAGE_KEY,
+      )) ?? 'null',
+    ),
+  ).toEqual({ schemaVersion: 2, state: recognizable })
 
   await selectImportFile(page, {
     name: 'too-large.json',
@@ -264,6 +382,58 @@ test('version 2 export, atomic import, invalid import, and Shopping-list restora
     .getByRole('button', { name: 'Keep current data' })
     .click()
   await expect(page.getByLabel('Day name')).toHaveValue('Canyon menu')
+})
+
+test('legacy and version 1 imports are classified and migrate with no Recipes', async ({
+  page,
+}) => {
+  await launchWithState(page, emptyState())
+
+  for (const source of [
+    {
+      filename: 'legacy.json',
+      description: 'legacy unversioned PlannerState',
+      value: {
+        days: [fixedDay('legacy-day', 'Legacy menu')],
+        customFoods: [],
+      },
+    },
+    {
+      filename: 'version-1.json',
+      description: 'version 1 backup',
+      value: {
+        schemaVersion: 1,
+        state: {
+          days: [fixedDay('v1-day', 'Version 1 menu')],
+          customFoods: [],
+        },
+      },
+    },
+  ]) {
+    await selectImportFile(page, {
+      name: source.filename,
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(source.value)),
+    })
+    const preview = page.getByRole('dialog', {
+      name: 'Import this backup?',
+    })
+    await expect(preview).toContainText(source.description)
+    await expect(preview.getByLabel('State preview')).toContainText(
+      'Recipes0',
+    )
+    await preview
+      .getByRole('button', { name: 'Replace current state' })
+      .click()
+    const stored = JSON.parse(
+      (await page.evaluate(
+        (key) => localStorage.getItem(key),
+        PLANNER_STORAGE_KEY,
+      )) ?? 'null',
+    )
+    expect(stored.schemaVersion).toBe(2)
+    expect(stored.state.recipes).toEqual([])
+  }
 })
 
 test('legacy custom Foods load with safe labels and zero serving weight', async ({
@@ -474,6 +644,13 @@ for (const scenario of [
     const dialog = page.getByRole('dialog', {
       name: 'Reset unreadable browser data?',
     })
+    await expect(dialog.getByLabel('Reset preview')).toContainText('Recipes')
+    await expect(dialog.getByLabel('Reset preview')).toContainText(
+      'Incomplete Recipes',
+    )
+    await expect(dialog.getByLabel('Reset preview')).toContainText(
+      'Unavailable Recipe ingredients',
+    )
     if (scenario.confirmReset) {
       await dialog.getByRole('button', { name: 'Reset and continue' }).click()
       await expect(
@@ -665,4 +842,32 @@ test('keyboard-only primary planning and navigation journey', async ({
   await expect(
     page.getByRole('heading', { name: 'Shopping list', level: 1 }),
   ).toBeVisible()
+})
+
+test('keyboard-only data recovery controls expose Recipe previews', async ({
+  page,
+}) => {
+  const state = emptyState()
+  state.recipes.push({
+    id: 'keyboard-recipe',
+    name: 'Keyboard Recipe',
+    category: null,
+    instructions: null,
+    ingredients: [
+      {
+        kind: 'food',
+        foodId: 'justin-s-classic-peanut-butter-19',
+        quantity: 1,
+      },
+    ],
+  })
+  await launchWithState(page, state)
+
+  await tabUntil(page, (active) => active.text === 'Reset')
+  await page.keyboard.press('Enter')
+  const dialog = page.getByRole('dialog', { name: 'Reset the Plan?' })
+  await expect(dialog.getByLabel('State preview')).toContainText('Recipes0')
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Reset' })).toBeFocused()
 })
