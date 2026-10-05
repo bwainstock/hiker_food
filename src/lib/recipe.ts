@@ -12,28 +12,42 @@ import type {
 import { z } from 'zod'
 import {
   EMPTY_NUTRITION,
-  addNutrition,
-  nutritionForFood,
+  ALL_NUTRITION_KNOWN,
+  NO_NUTRITION_KNOWN,
+  addNutritionSummaries,
+  nutritionSummaryForFood,
   round,
+  type NutritionSummary,
 } from './nutrition'
 import { recipeIngredientSchema } from './schemas'
 
-export interface ResolvedRecipe {
+export interface ResolvedRecipe extends NutritionSummary {
   ingredientCount: number
   complete: boolean
-  nutrition: Nutrition
   unavailableFoodIds: string[]
   unavailableFoodReferences: FoodIngredient[]
   foodContributions: FoodIngredient[]
   recipeOnlyContributions: RecipeOnlyIngredient[]
 }
 
-export interface ResolvedPlanItem {
+export interface ResolvedPlanItem extends NutritionSummary {
   kind: PlanItem['target']['kind']
   id: string
   label: string
   complete: boolean
-  nutrition: Nutrition
+}
+
+export interface ResolvedRecipeIngredient extends NutritionSummary {
+  key: string
+  kind: RecipeIngredient['kind']
+  valid: boolean
+  available: boolean
+  complete: boolean
+}
+
+export interface ResolvedRecipeDraft extends NutritionSummary {
+  complete: boolean
+  contributions: ResolvedRecipeIngredient[]
 }
 
 export interface RecipeDraft {
@@ -177,14 +191,14 @@ export function addRecipeOnlyIngredient(
         id: createId(),
         name: '',
         weightGrams: 0,
-        calories: 0,
-        fat: 0,
-        carbs: 0,
-        protein: 0,
-        fiber: 0,
-        sugar: 0,
-        sodium: 0,
-        potassium: 0,
+        calories: null,
+        fat: null,
+        carbs: null,
+        protein: null,
+        fiber: null,
+        sugar: null,
+        sodium: null,
+        potassium: null,
       },
     ],
   }
@@ -194,14 +208,52 @@ export function updateRecipeOnlyIngredient(
   draft: RecipeDraft,
   ingredientId: string,
   updates: Partial<Omit<RecipeOnlyIngredient, 'kind' | 'id'>>,
+  baseline?: RecipeOnlyIngredient,
 ): RecipeDraft {
   return {
     ...draft,
     ingredients: draft.ingredients.map((ingredient) =>
       ingredient.kind === 'recipe-only' && ingredient.id === ingredientId
-        ? { ...ingredient, ...updates }
+        ? updateRecipeOnlyIngredientValues(
+            ingredient,
+            updates,
+            baseline,
+          )
         : ingredient,
     ),
+  }
+}
+
+function updateRecipeOnlyIngredientValues(
+  ingredient: RecipeOnlyIngredient,
+  updates: Partial<Omit<RecipeOnlyIngredient, 'kind' | 'id'>>,
+  baseline = ingredient,
+): RecipeOnlyIngredient {
+  const nextWeight = updates.weightGrams
+  if (
+    nextWeight === undefined ||
+    !Number.isFinite(nextWeight) ||
+    nextWeight <= 0 ||
+    !Number.isFinite(baseline.weightGrams) ||
+    baseline.weightGrams <= 0
+  ) {
+    return { ...ingredient, ...updates }
+  }
+
+  const ratio = nextWeight / baseline.weightGrams
+  const scale = (value: number | null) =>
+    value === null ? null : value * ratio
+  return {
+    ...ingredient,
+    calories: scale(baseline.calories),
+    fat: scale(baseline.fat),
+    carbs: scale(baseline.carbs),
+    protein: scale(baseline.protein),
+    fiber: scale(baseline.fiber),
+    sugar: scale(baseline.sugar),
+    sodium: scale(baseline.sodium),
+    potassium: scale(baseline.potassium),
+    ...updates,
   }
 }
 
@@ -272,6 +324,94 @@ export function filterRecipes(
   })
 }
 
+export function resolveRecipeDraft(
+  draft: RecipeDraft,
+  foodsById: ReadonlyMap<string, Food>,
+): ResolvedRecipeDraft {
+  const contributions = draft.ingredients.map((ingredient) =>
+    resolveRecipeIngredient(ingredient, foodsById),
+  )
+  if (contributions.length === 0) {
+    return {
+      complete: false,
+      nutrition: { ...EMPTY_NUTRITION },
+      known: { ...NO_NUTRITION_KNOWN },
+      contributions,
+    }
+  }
+
+  const summary = addNutritionSummaries(
+    ...contributions.map(({ nutrition, known }) => ({
+      nutrition,
+      known,
+    })),
+  )
+  return {
+    complete:
+      contributions.every((contribution) => contribution.complete) &&
+      Object.values(summary.known).every(Boolean),
+    nutrition: summary.nutrition,
+    known: summary.known,
+    contributions,
+  }
+}
+
+export function resolveRecipeIngredient(
+  ingredient: RecipeIngredient,
+  foodsById: ReadonlyMap<string, Food>,
+): ResolvedRecipeIngredient {
+  const valid = recipeIngredientSchema.safeParse(ingredient).success
+  const key =
+    ingredient.kind === 'food' ? ingredient.foodId : ingredient.id
+  if (!valid) {
+    return {
+      key,
+      kind: ingredient.kind,
+      valid: false,
+      available:
+        ingredient.kind === 'recipe-only' ||
+        foodsById.has(ingredient.foodId),
+      complete: false,
+      nutrition: { ...EMPTY_NUTRITION },
+      known: { ...NO_NUTRITION_KNOWN },
+    }
+  }
+
+  if (ingredient.kind === 'food') {
+    const food = foodsById.get(ingredient.foodId)
+    if (!food) {
+      return {
+        key,
+        kind: ingredient.kind,
+        valid: true,
+        available: false,
+        complete: false,
+        nutrition: { ...EMPTY_NUTRITION },
+        known: { ...NO_NUTRITION_KNOWN },
+      }
+    }
+    const summary = nutritionSummaryForFood(food, ingredient.quantity)
+    return {
+      key,
+      kind: ingredient.kind,
+      valid: true,
+      available: true,
+      complete: Object.values(summary.known).every(Boolean),
+      ...summary,
+    }
+  }
+
+  const summary = nutritionSummaryForRecipeOnlyIngredient(ingredient)
+  return {
+    key,
+    kind: ingredient.kind,
+    valid: true,
+    available: true,
+    complete: Object.values(summary.known).every(Boolean),
+    ...summary,
+  }
+}
+
 export function formatRecipeCalories(calories: number) {
   return `${round(calories)} kcal`
 }
@@ -287,12 +427,12 @@ export function resolveRecipe(
   const resolvedFoods = foodIngredients.flatMap((ingredient) => {
     const food = foodsById.get(ingredient.foodId)
     return food
-      ? [nutritionForFood(food, ingredient.quantity)]
+      ? [nutritionSummaryForFood(food, ingredient.quantity)]
       : []
   })
   const recipeOnlyNutrition = recipe.ingredients.flatMap((ingredient) =>
     ingredient.kind === 'recipe-only'
-      ? [nutritionForRecipeOnlyIngredient(ingredient)]
+      ? [nutritionSummaryForRecipeOnlyIngredient(ingredient)]
       : [],
   )
   const resolved = [...resolvedFoods, ...recipeOnlyNutrition]
@@ -302,10 +442,23 @@ export function resolveRecipe(
   const unavailableFoodReferences = foodIngredients.filter(
     (ingredient) => !foodsById.has(ingredient.foodId),
   )
+  const summary =
+    resolved.length === 0
+      ? {
+          nutrition: { ...EMPTY_NUTRITION },
+          known: { ...ALL_NUTRITION_KNOWN },
+        }
+      : addNutritionSummaries(...resolved)
+  if (unavailableFoodIds.length > 0) {
+    Object.keys(summary.known).forEach((key) => {
+      summary.known[key as keyof Nutrition] = false
+    })
+  }
 
   return {
     ingredientCount: recipe.ingredients.length,
-    complete: unavailableFoodIds.length === 0,
+    complete: Object.values(summary.known).every(Boolean),
+    known: summary.known,
     unavailableFoodIds,
     unavailableFoodReferences,
     foodContributions: foodIngredients,
@@ -313,10 +466,7 @@ export function resolveRecipe(
       (ingredient): ingredient is RecipeOnlyIngredient =>
         ingredient.kind === 'recipe-only',
     ),
-    nutrition:
-      resolved.length === 0
-        ? { ...EMPTY_NUTRITION }
-        : addNutrition(...resolved),
+    nutrition: summary.nutrition,
   }
 }
 
@@ -343,15 +493,15 @@ export function resolvePlanItem(
 ): ResolvedPlanItem | null {
   if (item.target.kind === 'food') {
     const food = foodsById.get(item.target.id)
-    return food
-      ? {
-          kind: 'food',
-          id: food.id,
-          label: food.name,
-          complete: true,
-          nutrition: nutritionForFood(food, item.quantity),
-        }
-      : null
+    if (!food) return null
+    const summary = nutritionSummaryForFood(food, item.quantity)
+    return {
+      kind: 'food',
+      id: food.id,
+      label: food.name,
+      complete: Object.values(summary.known).every(Boolean),
+      ...summary,
+    }
   }
 
   const recipe = recipesById.get(item.target.id)
@@ -363,6 +513,7 @@ export function resolvePlanItem(
     label: recipe.name,
     complete: resolved.complete,
     nutrition: scaleNutrition(resolved.nutrition, item.quantity),
+    known: resolved.known,
   }
 }
 
@@ -383,16 +534,36 @@ export function scaleNutrition(
 export function nutritionForRecipeOnlyIngredient(
   ingredient: RecipeOnlyIngredient,
 ): Nutrition {
+  return nutritionSummaryForRecipeOnlyIngredient(ingredient).nutrition
+}
+
+export function nutritionSummaryForRecipeOnlyIngredient(
+  ingredient: RecipeOnlyIngredient,
+) {
   return {
-    calories: ingredient.calories,
-    weightOz: ingredient.weightGrams / 28.3495,
-    weightGrams: ingredient.weightGrams,
-    fat: ingredient.fat,
-    sodium: ingredient.sodium,
-    potassium: ingredient.potassium,
-    carbs: ingredient.carbs,
-    fiber: ingredient.fiber,
-    sugar: ingredient.sugar,
-    protein: ingredient.protein,
+    nutrition: {
+      calories: ingredient.calories ?? 0,
+      weightOz: ingredient.weightGrams / 28.3495,
+      weightGrams: ingredient.weightGrams,
+      fat: ingredient.fat ?? 0,
+      sodium: ingredient.sodium ?? 0,
+      potassium: ingredient.potassium ?? 0,
+      carbs: ingredient.carbs ?? 0,
+      fiber: ingredient.fiber ?? 0,
+      sugar: ingredient.sugar ?? 0,
+      protein: ingredient.protein ?? 0,
+    },
+    known: {
+      calories: ingredient.calories !== null,
+      weightOz: true,
+      weightGrams: true,
+      fat: ingredient.fat !== null,
+      sodium: ingredient.sodium !== null,
+      potassium: ingredient.potassium !== null,
+      carbs: ingredient.carbs !== null,
+      fiber: ingredient.fiber !== null,
+      sugar: ingredient.sugar !== null,
+      protein: ingredient.protein !== null,
+    },
   }
 }

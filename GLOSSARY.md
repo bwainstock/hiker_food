@@ -45,8 +45,9 @@ _Avoid_: Recipe Food, copied Food
 
 **Recipe-only ingredient**:
 An ingredient that belongs to one Recipe, has its own stable ID, gram weight,
-and label nutrition, and does not become a Food. Optional detailed nutrition
-values are stored as zero when omitted.
+and label nutrition, and does not become a Food. Changing its weight scales
+known nutrition values proportionally. A blank nutrition value is unknown;
+an explicit zero is a known zero.
 _Avoid_: Custom Food, manual Food
 
 **Unresolved Plan item**:
@@ -66,8 +67,9 @@ packing session; it is not durable Plan data.
 _Avoid_: Completion state, saved checkmark
 
 **Nutrition totals**:
-The summed available nutrition for a meal period, Trail day, or Plan.
-Unresolved Plan items make these totals incomplete.
+The summed known nutrition for a Recipe, meal period, Trail day, or Plan.
+Each nutrient can be complete or incomplete independently; an incomplete
+total shows its known subtotal rather than treating unknown values as zero.
 _Avoid_: Nutrition facts
 
 **Electrolyte product**:

@@ -1,4 +1,11 @@
-import { CookingPot, Pencil, Plus, Search, Trash2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  CookingPot,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from 'lucide-react'
 import { useId, useMemo, useState } from 'react'
 import { FoodPicker } from '../components/FoodPicker'
 import { EmptyState, Modal } from '../components/Ui'
@@ -16,12 +23,18 @@ import {
   removeRecipeOnlyIngredient,
   replaceFoodIngredient,
   resolveRecipe,
+  resolveRecipeDraft,
   saveRecipeDraft,
   updateFoodIngredientQuantity,
   updateRecipeOnlyIngredient,
   validateRecipeDraft,
 } from '../lib/recipe'
-import { formatWeight, round } from '../lib/nutrition'
+import {
+  formatKnownNutritionValue,
+  formatWeight,
+  round,
+  type NutritionSummary,
+} from '../lib/nutrition'
 import {
   RECIPE_CATEGORIES,
   type Food,
@@ -31,7 +44,10 @@ import {
   type RecipeCategory,
   type RecipeOnlyIngredient,
 } from '../types'
-import type { RecipeDraft } from '../lib/recipe'
+import type {
+  RecipeDraft,
+  ResolvedRecipeIngredient,
+} from '../lib/recipe'
 
 interface RecipeErrors {
   name?: string
@@ -247,20 +263,26 @@ function RecipeCard({
   onDelete: () => void
 }) {
   const summary = resolveRecipe(recipe, foodsById)
-  const { nutrition } = summary
+  const { nutrition, known } = summary
   const metrics = [
     [
       'Weight',
-      `${formatWeight(nutrition.weightOz)} · ${round(nutrition.weightGrams, 1)} g`,
+      `${formatKnownNutritionValue(
+        formatWeight(nutrition.weightOz),
+        known.weightOz,
+      )} · ${formatKnownNutritionValue(
+        `${round(nutrition.weightGrams, 1)} g`,
+        known.weightGrams,
+      )}`,
     ],
-    ['Calories', formatRecipeCalories(nutrition.calories)],
-    ['Fat', `${round(nutrition.fat, 1)} g`],
-    ['Carbohydrates', `${round(nutrition.carbs, 1)} g`],
-    ['Protein', `${round(nutrition.protein, 1)} g`],
-    ['Fiber', `${round(nutrition.fiber, 1)} g`],
-    ['Sugar', `${round(nutrition.sugar, 1)} g`],
-    ['Sodium', `${round(nutrition.sodium)} mg`],
-    ['Potassium', `${round(nutrition.potassium)} mg`],
+    ['Calories', formatNutritionValue(summary, 'calories')],
+    ['Fat', formatNutritionValue(summary, 'fat')],
+    ['Carbohydrates', formatNutritionValue(summary, 'carbs')],
+    ['Protein', formatNutritionValue(summary, 'protein')],
+    ['Fiber', formatNutritionValue(summary, 'fiber')],
+    ['Sugar', formatNutritionValue(summary, 'sugar')],
+    ['Sodium', formatNutritionValue(summary, 'sodium')],
+    ['Potassium', formatNutritionValue(summary, 'potassium')],
   ]
 
   return (
@@ -299,16 +321,18 @@ function RecipeCard({
       {!summary.complete && (
         <div className="recipe-warning" role="status">
           <strong>Known totals only — this Recipe is incomplete.</strong>
-          <span>
-            Repair unavailable Food
-            {summary.unavailableFoodReferences.length === 1 ? '' : 's'}:{' '}
-            {summary.unavailableFoodReferences
-              .map(
-                (ingredient) =>
-                  `${ingredient.foodId} (${round(ingredient.quantity, 1)} servings)`,
-              )
-              .join(', ')}
-          </span>
+          {summary.unavailableFoodReferences.length > 0 && (
+            <span>
+              Repair unavailable Food
+              {summary.unavailableFoodReferences.length === 1 ? '' : 's'}:{' '}
+              {summary.unavailableFoodReferences
+                .map(
+                  (ingredient) =>
+                    `${ingredient.foodId} (${round(ingredient.quantity, 3)} servings)`,
+                )
+                .join(', ')}
+            </span>
+          )}
         </div>
       )}
       <dl className="recipe-metrics">
@@ -343,6 +367,18 @@ function RecipeForm({
   const errorId = useId()
   const [errors, setErrors] = useState<RecipeErrors>({ fields: {} })
   const [replacingFoodId, setReplacingFoodId] = useState<string | null>(null)
+  const [recipeOnlyBaselines, setRecipeOnlyBaselines] = useState<
+    Record<string, RecipeOnlyIngredient>
+  >(() =>
+    Object.fromEntries(
+      draft.ingredients.flatMap((ingredient) =>
+        ingredient.kind === 'recipe-only' &&
+        isRecipeOnlyNutritionBaseline(ingredient)
+          ? [[ingredient.id, ingredient]]
+          : [],
+      ),
+    ),
+  )
 
   const save = () => {
     const result = validateRecipeDraft(draft)
@@ -383,10 +419,52 @@ function RecipeForm({
     (ingredient): ingredient is RecipeOnlyIngredient =>
       ingredient.kind === 'recipe-only',
   )
+  const liveSummary = useMemo(
+    () => resolveRecipeDraft(draft, foodsById),
+    [draft, foodsById],
+  )
+  const contributionsByKey = useMemo(
+    () =>
+      new Map(
+        liveSummary.contributions.map((contribution) => [
+          contribution.key,
+          contribution,
+        ]),
+      ),
+    [liveSummary.contributions],
+  )
+  const changeRecipeOnlyIngredient = (
+    ingredientId: string,
+    updates: Partial<Omit<RecipeOnlyIngredient, 'kind' | 'id'>>,
+  ) => {
+    const nextDraft = updateRecipeOnlyIngredient(
+      draft,
+      ingredientId,
+      updates,
+      recipeOnlyBaselines[ingredientId],
+    )
+    const nextIngredient = nextDraft.ingredients.find(
+      (ingredient): ingredient is RecipeOnlyIngredient =>
+        ingredient.kind === 'recipe-only' &&
+        ingredient.id === ingredientId,
+    )
+    if (nextIngredient && isRecipeOnlyNutritionBaseline(nextIngredient)) {
+      setRecipeOnlyBaselines((current) => ({
+        ...current,
+        [ingredientId]: nextIngredient,
+      }))
+    }
+    onDraftChange(nextDraft)
+  }
 
   return (
-    <Modal title={title} onClose={onCancel}>
-      <div className="recipe-form">
+    <Modal
+      title={title}
+      onClose={onCancel}
+      className="recipe-editor-modal"
+    >
+      <div className="recipe-editor-layout">
+        <div className="recipe-form">
         <div className="recipe-basics">
           <label className="recipe-name-field">
             <span>Recipe name</span>
@@ -457,6 +535,9 @@ function RecipeForm({
                 const food = foodsById.get(ingredient.foodId)
                 const quantityError =
                   errors.fields[ingredient.foodId]?.quantity
+                const contribution = contributionsByKey.get(
+                  ingredient.foodId,
+                )
                 return (
                   <div className="recipe-ingredient" key={ingredient.foodId}>
                     <div>
@@ -470,8 +551,8 @@ function RecipeForm({
                       <span>Servings</span>
                       <input
                         type="number"
-                        min="0.1"
-                        step="0.1"
+                        min="0.001"
+                        step="0.001"
                         value={ingredient.quantity}
                         onChange={(event) =>
                           onDraftChange(
@@ -483,7 +564,10 @@ function RecipeForm({
                           )
                         }
                         aria-label={`Quantity for ${food?.name ?? ingredient.foodId}`}
-                        aria-invalid={Boolean(quantityError)}
+                        aria-invalid={
+                          Boolean(quantityError) ||
+                          contribution?.valid === false
+                        }
                       />
                       {quantityError && (
                         <span className="field-error" role="alert">
@@ -522,6 +606,9 @@ function RecipeForm({
                         <Trash2 size={15} />
                       </button>
                     </div>
+                    {contribution && (
+                      <IngredientNutrition contribution={contribution} />
+                    )}
                     {!food && replacingFoodId === ingredient.foodId && (
                       <div className="unresolved-replacement">
                         <FoodPicker
@@ -563,14 +650,9 @@ function RecipeForm({
                 ingredient={ingredient}
                 index={index}
                 errors={errors.fields[ingredient.id] ?? {}}
+                contribution={contributionsByKey.get(ingredient.id)}
                 onChange={(updates) =>
-                  onDraftChange(
-                    updateRecipeOnlyIngredient(
-                      draft,
-                      ingredient.id,
-                      updates,
-                    ),
-                  )
+                  changeRecipeOnlyIngredient(ingredient.id, updates)
                 }
                 onRemove={() =>
                   onDraftChange(
@@ -605,6 +687,12 @@ function RecipeForm({
             {errors.ingredients}
           </p>
         )}
+        </div>
+        <RecipeNutritionSummary
+          ingredientCount={draft.ingredients.length}
+          summary={liveSummary}
+          complete={liveSummary.complete}
+        />
       </div>
       <div className="modal-actions">
         <button
@@ -626,16 +714,189 @@ function RecipeForm({
   )
 }
 
+type DisplayNutritionKey =
+  | 'calories'
+  | 'fat'
+  | 'carbs'
+  | 'protein'
+  | 'fiber'
+  | 'sugar'
+  | 'sodium'
+  | 'potassium'
+
+const CORE_NUTRITION_FIELDS = [
+  ['Calories', 'calories'],
+  ['Fat', 'fat'],
+  ['Carbohydrates', 'carbs'],
+  ['Protein', 'protein'],
+] as const satisfies readonly (readonly [string, DisplayNutritionKey])[]
+
+const DETAIL_NUTRITION_FIELDS = [
+  ['Fiber', 'fiber'],
+  ['Sugar', 'sugar'],
+  ['Sodium', 'sodium'],
+  ['Potassium', 'potassium'],
+] as const satisfies readonly (readonly [string, DisplayNutritionKey])[]
+
+function isRecipeOnlyNutritionBaseline(
+  ingredient: RecipeOnlyIngredient,
+) {
+  const nutritionValues = [
+    ingredient.calories,
+    ingredient.fat,
+    ingredient.carbs,
+    ingredient.protein,
+    ingredient.fiber,
+    ingredient.sugar,
+    ingredient.sodium,
+    ingredient.potassium,
+  ]
+  return (
+    Number.isFinite(ingredient.weightGrams) &&
+    ingredient.weightGrams > 0 &&
+    nutritionValues.every(
+      (value) =>
+        value === null ||
+        (Number.isFinite(value) && value >= 0),
+    )
+  )
+}
+
+function formatNutritionValue(
+  summary: NutritionSummary,
+  key: DisplayNutritionKey,
+) {
+  const value = summary.nutrition[key]
+  const formatted =
+    key === 'calories'
+      ? formatRecipeCalories(value)
+      : key === 'sodium' || key === 'potassium'
+        ? `${round(value)} mg`
+        : `${round(value, 1)} g`
+  return formatKnownNutritionValue(formatted, summary.known[key])
+}
+
+function NutritionMetricList({
+  fields,
+  summary,
+  className,
+}: {
+  fields: readonly (readonly [string, DisplayNutritionKey])[]
+  summary: NutritionSummary
+  className: string
+}) {
+  return (
+    <dl className={className}>
+      {fields.map(([label, key]) => (
+        <div key={key}>
+          <dt>{label}</dt>
+          <dd>{formatNutritionValue(summary, key)}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+function IngredientNutrition({
+  contribution,
+}: {
+  contribution: ResolvedRecipeIngredient
+}) {
+  if (!contribution.valid || !contribution.available) {
+    return (
+      <div className="ingredient-nutrition ingredient-nutrition-incomplete">
+        <AlertTriangle size={14} aria-hidden="true" />
+        <span>
+          {contribution.valid
+            ? 'Unavailable Food — excluded from totals.'
+            : 'Incomplete ingredient — excluded from totals.'}
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="ingredient-nutrition">
+      <NutritionMetricList
+        fields={CORE_NUTRITION_FIELDS}
+        summary={contribution}
+        className="ingredient-core-nutrition"
+      />
+      <details>
+        <summary>Fiber, sugar, sodium, and potassium</summary>
+        <NutritionMetricList
+          fields={DETAIL_NUTRITION_FIELDS}
+          summary={contribution}
+          className="ingredient-detail-nutrition"
+        />
+      </details>
+      {!contribution.complete && (
+        <span className="nutrition-incomplete-label">
+          Some nutrition values are unknown.
+        </span>
+      )}
+    </div>
+  )
+}
+
+function RecipeNutritionSummary({
+  ingredientCount,
+  summary,
+  complete,
+}: {
+  ingredientCount: number
+  summary: NutritionSummary
+  complete: boolean
+}) {
+  return (
+    <aside
+      className="recipe-live-summary"
+      aria-label="Live Recipe nutrition"
+      aria-live="polite"
+    >
+      <span className="eyebrow">Whole Recipe</span>
+      <h3>Live nutrition</h3>
+      {ingredientCount === 0 ? (
+        <p>Add ingredients to see nutrition.</p>
+      ) : (
+        <>
+          {!complete && (
+            <div className="live-summary-warning">
+              <AlertTriangle size={14} aria-hidden="true" />
+              <span>Known totals shown; some values are incomplete.</span>
+            </div>
+          )}
+          <NutritionMetricList
+            fields={CORE_NUTRITION_FIELDS}
+            summary={summary}
+            className="live-summary-core"
+          />
+          <details>
+            <summary>Fiber, sugar, sodium, and potassium</summary>
+            <NutritionMetricList
+              fields={DETAIL_NUTRITION_FIELDS}
+              summary={summary}
+              className="live-summary-details"
+            />
+          </details>
+        </>
+      )}
+    </aside>
+  )
+}
+
 function RecipeOnlyIngredientFields({
   ingredient,
   index,
   errors,
+  contribution,
   onChange,
   onRemove,
 }: {
   ingredient: RecipeOnlyIngredient
   index: number
   errors: Record<string, string>
+  contribution?: ResolvedRecipeIngredient
   onChange: (
     updates: Partial<Omit<RecipeOnlyIngredient, 'kind' | 'id'>>,
   ) => void
@@ -687,10 +948,18 @@ function RecipeOnlyIngredientFields({
               type="number"
               min={field === 'weightGrams' ? '0.01' : '0'}
               step="any"
-              value={ingredient[field]}
-              onChange={(event) =>
-                onChange({ [field]: Number(event.target.value) })
-              }
+              value={ingredient[field] ?? ''}
+              onChange={(event) => {
+                const value = event.target.value
+                onChange({
+                  [field]:
+                    field === 'weightGrams'
+                      ? Number(value)
+                      : value === ''
+                        ? null
+                        : Number(value),
+                })
+              }}
               aria-invalid={Boolean(errors[field])}
             />
             {errors[field] && (
@@ -701,6 +970,9 @@ function RecipeOnlyIngredientFields({
           </label>
         ))}
       </div>
+      {contribution && (
+        <IngredientNutrition contribution={contribution} />
+      )}
     </fieldset>
   )
 }

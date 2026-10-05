@@ -1,4 +1,10 @@
-import type { Food, Nutrition, PlanItem, Recipe } from '../types'
+import type {
+  Food,
+  Nutrition,
+  NutritionKnown,
+  PlanItem,
+  Recipe,
+} from '../types'
 import { resolvePlanItem } from './recipe'
 
 export { resolvePlanItem } from './recipe'
@@ -16,24 +22,86 @@ export const EMPTY_NUTRITION: Nutrition = {
   protein: 0,
 }
 
+export const ALL_NUTRITION_KNOWN: NutritionKnown = {
+  calories: true,
+  weightOz: true,
+  weightGrams: true,
+  fat: true,
+  sodium: true,
+  potassium: true,
+  carbs: true,
+  fiber: true,
+  sugar: true,
+  protein: true,
+}
+
+export const NO_NUTRITION_KNOWN: NutritionKnown = {
+  calories: false,
+  weightOz: false,
+  weightGrams: false,
+  fat: false,
+  sodium: false,
+  potassium: false,
+  carbs: false,
+  fiber: false,
+  sugar: false,
+  protein: false,
+}
+
+export interface NutritionSummary {
+  nutrition: Nutrition
+  known: NutritionKnown
+}
+
+export function formatKnownNutritionValue(
+  value: string,
+  known: boolean,
+) {
+  return known ? value : `${value} known`
+}
+
 const value = (input: number | null | undefined) =>
   typeof input === 'number' && Number.isFinite(input) ? input : 0
 
-export function nutritionForFood(food: Food, quantity = 1): Nutrition {
+const isKnown = (input: number | null | undefined) =>
+  typeof input === 'number' && Number.isFinite(input)
+
+export function nutritionSummaryForFood(
+  food: Food,
+  quantity = 1,
+): NutritionSummary {
   const safeQuantity =
     Number.isFinite(quantity) && quantity > 0 ? quantity : 0
   return {
-    calories: value(food.calories) * safeQuantity,
-    weightOz: value(food.servingOz) * safeQuantity,
-    weightGrams: value(food.servingGrams) * safeQuantity,
-    fat: value(food.fat) * safeQuantity,
-    sodium: value(food.sodium) * safeQuantity,
-    potassium: value(food.potassium) * safeQuantity,
-    carbs: value(food.carbs) * safeQuantity,
-    fiber: value(food.fiber) * safeQuantity,
-    sugar: value(food.sugar) * safeQuantity,
-    protein: value(food.protein) * safeQuantity,
+    nutrition: {
+      calories: value(food.calories) * safeQuantity,
+      weightOz: value(food.servingOz) * safeQuantity,
+      weightGrams: value(food.servingGrams) * safeQuantity,
+      fat: value(food.fat) * safeQuantity,
+      sodium: value(food.sodium) * safeQuantity,
+      potassium: value(food.potassium) * safeQuantity,
+      carbs: value(food.carbs) * safeQuantity,
+      fiber: value(food.fiber) * safeQuantity,
+      sugar: value(food.sugar) * safeQuantity,
+      protein: value(food.protein) * safeQuantity,
+    },
+    known: {
+      calories: isKnown(food.calories),
+      weightOz: isKnown(food.servingOz),
+      weightGrams: isKnown(food.servingGrams),
+      fat: isKnown(food.fat),
+      sodium: isKnown(food.sodium),
+      potassium: isKnown(food.potassium),
+      carbs: isKnown(food.carbs),
+      fiber: isKnown(food.fiber),
+      sugar: isKnown(food.sugar),
+      protein: isKnown(food.protein),
+    },
   }
+}
+
+export function nutritionForFood(food: Food, quantity = 1): Nutrition {
+  return nutritionSummaryForFood(food, quantity).nutrition
 }
 
 export function addNutrition(...values: Nutrition[]): Nutrition {
@@ -54,15 +122,50 @@ export function addNutrition(...values: Nutrition[]): Nutrition {
   )
 }
 
+export function addNutritionSummaries(
+  ...values: NutritionSummary[]
+): NutritionSummary {
+  return {
+    nutrition: addNutrition(...values.map(({ nutrition }) => nutrition)),
+    known: values.reduce<NutritionKnown>(
+      (known, current) =>
+        Object.fromEntries(
+          Object.keys(known).map((key) => [
+            key,
+            known[key as keyof Nutrition] &&
+              current.known[key as keyof Nutrition],
+          ]),
+        ) as NutritionKnown,
+      { ...ALL_NUTRITION_KNOWN },
+    ),
+  }
+}
+
 export function nutritionForItems(
   items: PlanItem[],
   foodsById: ReadonlyMap<string, Food>,
   recipesById: ReadonlyMap<string, Recipe> = new Map(),
 ): Nutrition {
-  return addNutrition(
-    ...items.flatMap((item) => {
+  return nutritionSummaryForItems(items, foodsById, recipesById).nutrition
+}
+
+export function nutritionSummaryForItems(
+  items: PlanItem[],
+  foodsById: ReadonlyMap<string, Food>,
+  recipesById: ReadonlyMap<string, Recipe> = new Map(),
+): NutritionSummary {
+  return addNutritionSummaries(
+    ...items.map((item) => {
       const resolved = resolvePlanItem(item, foodsById, recipesById)
-      return resolved ? [resolved.nutrition] : []
+      return resolved
+        ? {
+            nutrition: resolved.nutrition,
+            known: resolved.known,
+          }
+        : {
+            nutrition: { ...EMPTY_NUTRITION },
+            known: { ...NO_NUTRITION_KNOWN },
+          }
     }),
   )
 }

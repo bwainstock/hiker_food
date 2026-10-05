@@ -100,14 +100,14 @@ export interface RecipeOnlyIngredient {
   id: string
   name: string
   weightGrams: number
-  calories: number
-  fat: number
-  carbs: number
-  protein: number
-  fiber: number
-  sugar: number
-  sodium: number
-  potassium: number
+  calories: NullableNumber
+  fat: NullableNumber
+  carbs: NullableNumber
+  protein: NullableNumber
+  fiber: NullableNumber
+  sugar: NullableNumber
+  sodium: NullableNumber
+  potassium: NullableNumber
 }
 
 export type RecipeIngredient =
@@ -145,6 +145,8 @@ export interface Nutrition {
   sugar: number
   protein: number
 }
+
+export type NutritionKnown = Record<keyof Nutrition, boolean>
 
 export type PlannerStateUpdater = (
   updater: (state: PlannerState) => PlannerState,
