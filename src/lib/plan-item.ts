@@ -14,7 +14,7 @@ import {
   type NutritionSummary,
 } from './nutrition'
 
-export interface PlanItemFoodContribution {
+interface PlanItemFoodContribution {
   kind: 'food'
   key: string
   foodId: string
@@ -22,7 +22,7 @@ export interface PlanItemFoodContribution {
   available: boolean
 }
 
-export interface PlanItemRecipeOnlyContribution {
+interface PlanItemRecipeOnlyContribution {
   kind: 'recipe-only'
   key: string
   recipeId: string
@@ -33,11 +33,11 @@ export interface PlanItemRecipeOnlyContribution {
   known: NutritionKnown
 }
 
-export type PlanItemContribution =
+type PlanItemContribution =
   | PlanItemFoodContribution
   | PlanItemRecipeOnlyContribution
 
-export interface UnavailablePlanItemReference {
+interface UnavailablePlanItemReference {
   kind: PlanItem['target']['kind']
   id: string
   quantity: number
