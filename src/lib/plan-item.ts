@@ -13,6 +13,7 @@ import {
   nutritionSummaryForFood,
   type NutritionSummary,
 } from './nutrition'
+import { resolveRecipeIngredient } from './recipe'
 
 interface PlanItemFoodContribution {
   kind: 'food'
@@ -195,31 +196,21 @@ function nutritionSummaryForRecipeOnlyIngredient(
   ingredient: Recipe['ingredients'][number] & { kind: 'recipe-only' },
   quantity: number,
 ): NutritionSummary {
-  const scale = (value: number | null) => (value ?? 0) * quantity
+  const summary = resolveRecipeIngredient(ingredient, new Map())
+  const scale = (value: number) => value * quantity
   return {
     nutrition: {
-      calories: scale(ingredient.calories),
-      weightOz: (ingredient.weightGrams / 28.3495) * quantity,
-      weightGrams: ingredient.weightGrams * quantity,
-      fat: scale(ingredient.fat),
-      sodium: scale(ingredient.sodium),
-      potassium: scale(ingredient.potassium),
-      carbs: scale(ingredient.carbs),
-      fiber: scale(ingredient.fiber),
-      sugar: scale(ingredient.sugar),
-      protein: scale(ingredient.protein),
+      calories: scale(summary.nutrition.calories),
+      weightOz: scale(summary.nutrition.weightOz),
+      weightGrams: scale(summary.nutrition.weightGrams),
+      fat: scale(summary.nutrition.fat),
+      sodium: scale(summary.nutrition.sodium),
+      potassium: scale(summary.nutrition.potassium),
+      carbs: scale(summary.nutrition.carbs),
+      fiber: scale(summary.nutrition.fiber),
+      sugar: scale(summary.nutrition.sugar),
+      protein: scale(summary.nutrition.protein),
     },
-    known: {
-      calories: ingredient.calories !== null,
-      weightOz: true,
-      weightGrams: true,
-      fat: ingredient.fat !== null,
-      sodium: ingredient.sodium !== null,
-      potassium: ingredient.potassium !== null,
-      carbs: ingredient.carbs !== null,
-      fiber: ingredient.fiber !== null,
-      sugar: ingredient.sugar !== null,
-      protein: ingredient.protein !== null,
-    },
+    known: summary.known,
   }
 }

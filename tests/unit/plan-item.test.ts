@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { interpretPlanItems } from '../../src/lib/plan-item'
+import { resolveRecipeIngredient } from '../../src/lib/recipe'
 import { makeFood, makeRecipe } from './fixtures'
 
 describe('Plan-item interpretation', () => {
@@ -184,6 +185,71 @@ describe('Plan-item interpretation', () => {
         calories: 0,
         sodium: 1400,
       },
+    })
+  })
+
+  it('uses the same Recipe-only nutrition rule as Recipe drafts before applying Plan-item scale', () => {
+    const ingredient = {
+      kind: 'recipe-only' as const,
+      id: 'cocoa',
+      name: 'Cocoa',
+      weightGrams: 12,
+      calories: 47,
+      fat: 1,
+      carbs: 7,
+      protein: 2,
+      fiber: 0,
+      sugar: null,
+      sodium: 0,
+      potassium: null,
+    }
+    const draftSummary = resolveRecipeIngredient(ingredient, new Map())
+    const recipe = makeRecipe({ ingredients: [ingredient] })
+
+    const [interpretation] = interpretPlanItems(
+      [{
+        id: 'recipe-placement',
+        target: { kind: 'recipe', id: recipe.id },
+        quantity: 2.5,
+      }],
+      [],
+      [recipe],
+    )
+
+    expect(draftSummary).toMatchObject({
+      nutrition: {
+        calories: 47,
+        weightGrams: 12,
+        fiber: 0,
+        sugar: 0,
+        sodium: 0,
+        potassium: 0,
+      },
+      known: {
+        fiber: true,
+        sugar: false,
+        sodium: true,
+        potassium: false,
+      },
+    })
+    expect(interpretation).toMatchObject({
+      nutrition: {
+        calories: 117.5,
+        weightGrams: 30,
+        fiber: 0,
+        sugar: 0,
+        sodium: 0,
+        potassium: 0,
+      },
+      known: draftSummary.known,
+      contributions: [{
+        kind: 'recipe-only',
+        nutrition: {
+          calories: 117.5,
+          weightGrams: 30,
+        },
+        known: draftSummary.known,
+      }],
     })
   })
 
