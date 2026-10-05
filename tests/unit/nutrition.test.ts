@@ -6,6 +6,7 @@ import {
   fatLabel,
   nutritionForFood,
   nutritionForItems,
+  nutritionSummaryForItems,
   resolvePlanItem,
   ratioLabel,
   sodiumLabel,
@@ -126,6 +127,51 @@ describe('nutrition calculations', () => {
         recipes,
       ).calories,
     ).toBe(440)
+  })
+
+  it('preserves per-nutrient completeness for Plan-item totals', () => {
+    const food = makeFood({
+      id: 'partial-food',
+      calories: 100,
+      protein: null,
+    })
+
+    expect(
+      resolvePlanItem(
+        {
+          id: 'partial-placement',
+          target: { kind: 'food', id: food.id },
+          quantity: 2,
+        },
+        new Map([[food.id, food]]),
+        new Map(),
+      ),
+    ).toMatchObject({
+      complete: false,
+      nutrition: {
+        calories: 200,
+        protein: 0,
+      },
+      known: {
+        calories: true,
+        protein: false,
+      },
+    })
+    expect(
+      nutritionSummaryForItems(
+        [
+          {
+            id: 'partial-placement',
+            target: { kind: 'food', id: food.id },
+            quantity: 2,
+          },
+        ],
+        new Map([[food.id, food]]),
+      ),
+    ).toMatchObject({
+      nutrition: { calories: 200, protein: 0 },
+      known: { calories: true, protein: false },
+    })
   })
 
   it('uses saved Recipe edits for existing Plan-item projections', () => {

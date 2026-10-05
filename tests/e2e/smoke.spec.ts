@@ -43,6 +43,10 @@ test('mixed Recipe creation, discovery, editing, and persistence @smoke', async 
 
   await page.getByRole('button', { name: 'Create Recipe' }).click()
   const createDialog = page.getByRole('dialog', { name: 'Create Recipe' })
+  const liveSummary = createDialog.getByRole('complementary', {
+    name: 'Live Recipe nutrition',
+  })
+  await expect(liveSummary).toContainText('Add ingredients to see nutrition.')
   await createDialog.getByRole('button', { name: 'Save Recipe' }).click()
   await expect(createDialog.getByText('Enter a Recipe name.')).toBeVisible()
   await expect(
@@ -61,12 +65,23 @@ test('mixed Recipe creation, discovery, editing, and persistence @smoke', async 
   await createDialog
     .getByRole('option', { name: /Justin's Classic Peanut Butter/ })
     .click()
+  const foodQuantity = createDialog.getByRole('spinbutton', {
+    name: "Quantity for Justin's Classic Peanut Butter",
+  })
+  await expect(liveSummary).toContainText('210 kcal')
+  await foodQuantity.fill('1.25')
+  await expect(liveSummary).toContainText('263 kcal')
+  await foodQuantity.fill('1')
+  await expect(liveSummary).toContainText('210 kcal')
   await createDialog
     .getByRole('button', { name: 'Add Recipe-only ingredient' })
     .press('Enter')
   const recipeOnly = createDialog.getByRole('group', {
     name: 'Recipe-only ingredient 1',
   })
+  await expect(recipeOnly).toContainText(
+    'Incomplete ingredient — excluded from totals.',
+  )
   await recipeOnly.getByLabel('Name').fill('Cocoa powder')
   await recipeOnly.getByLabel('Weight (g)').fill('0')
   await createDialog.getByRole('button', { name: 'Save Recipe' }).click()
@@ -78,11 +93,19 @@ test('mixed Recipe creation, discovery, editing, and persistence @smoke', async 
   await recipeOnly.getByLabel('Fat (g)').fill('1')
   await recipeOnly.getByLabel('Carbohydrates (g)').fill('5')
   await recipeOnly.getByLabel('Protein (g)').fill('2')
+  await expect(liveSummary).toContainText('251 kcal')
+  await recipeOnly.getByLabel('Weight (g)').fill('5')
+  await expect(liveSummary).toContainText('231 kcal')
+  await recipeOnly.getByLabel('Weight (g)').fill('10')
+  await expect(liveSummary).toContainText('251 kcal')
   await createDialog.getByRole('button', { name: 'Save Recipe' }).click()
 
   const recipe = page.getByRole('article', { name: 'Peanut butter bowl' })
   await expect(recipe).toContainText('2 ingredients')
   await expect(recipe).toContainText('251 kcal')
+  await expect(recipe).toContainText(
+    'Known totals only — this Recipe is incomplete.',
+  )
   await expect(recipe).toContainText('Breakfast')
   await expect(recipe).toContainText('Stir with cold water')
 
@@ -105,7 +128,26 @@ test('mixed Recipe creation, discovery, editing, and persistence @smoke', async 
   await page
     .getByRole('button', { name: 'Edit Peanut butter bowl' })
     .click()
-  const editDialog = page.getByRole('dialog', {
+  let editDialog = page.getByRole('dialog', {
+    name: 'Edit Peanut butter bowl',
+  })
+  await editDialog
+    .getByRole('spinbutton', {
+      name: "Quantity for Justin's Classic Peanut Butter",
+    })
+    .fill('1.25')
+  await expect(
+    editDialog.getByRole('complementary', {
+      name: 'Live Recipe nutrition',
+    }),
+  ).toContainText('304 kcal')
+  await editDialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(recipe).toContainText('251 kcal')
+
+  await page
+    .getByRole('button', { name: 'Edit Peanut butter bowl' })
+    .click()
+  editDialog = page.getByRole('dialog', {
     name: 'Edit Peanut butter bowl',
   })
   await editDialog

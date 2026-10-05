@@ -10,13 +10,14 @@ import {
   removeRecipeOnlyIngredient,
   replaceFoodIngredient,
   resolveRecipe,
+  resolveRecipeDraft,
   saveRecipeDraft,
   updateRecipeOnlyIngredient,
   updateFoodIngredientQuantity,
   validateRecipeDraft,
 } from '../../src/lib/recipe'
 import { recipeIngredientSchema } from '../../src/lib/schemas'
-import type { Recipe } from '../../src/types'
+import type { Recipe, RecipeOnlyIngredient } from '../../src/types'
 import { makeFood, makeState } from './fixtures'
 
 describe('Food-based Recipe resolution', () => {
@@ -118,6 +119,46 @@ describe('Food-based Recipe resolution', () => {
     })
   })
 
+  it('marks only nutrients with missing source data as unknown', () => {
+    const recipe: Recipe = {
+      id: 'recipe-partial-nutrition',
+      name: 'Partially labeled snack',
+      category: null,
+      instructions: null,
+      ingredients: [
+        { kind: 'food', foodId: 'food-1', quantity: 2 },
+      ],
+    }
+
+    expect(
+      resolveRecipe(
+        recipe,
+        new Map([
+          [
+            'food-1',
+            makeFood({
+              calories: null,
+              fiber: null,
+              protein: 4,
+            }),
+          ],
+        ]),
+      ),
+    ).toMatchObject({
+      complete: false,
+      nutrition: {
+        calories: 0,
+        fiber: 0,
+        protein: 8,
+      },
+      known: {
+        calories: false,
+        fiber: false,
+        protein: true,
+      },
+    })
+  })
+
   it('replaces an unavailable Food while retaining quantity and restores completeness', () => {
     const recipe: Recipe = {
       id: 'recipe-incomplete',
@@ -179,7 +220,7 @@ describe('Food-based Recipe resolution', () => {
     ])
   })
 
-  it('requires a name, an ingredient, and positive 0.1-serving quantities', () => {
+  it('accepts Recipe Food quantities to three decimal places', () => {
     expect(validateRecipeDraft(createRecipeDraft()).success).toBe(false)
 
     const draft = {
@@ -189,7 +230,19 @@ describe('Food-based Recipe resolution', () => {
         { kind: 'food' as const, foodId: 'food-1', quantity: 1.25 },
       ],
     }
-    expect(validateRecipeDraft(draft).success).toBe(false)
+    expect(validateRecipeDraft(draft).success).toBe(true)
+    expect(
+      validateRecipeDraft({
+        ...draft,
+        ingredients: [{ ...draft.ingredients[0], quantity: 0.125 }],
+      }).success,
+    ).toBe(true)
+    expect(
+      validateRecipeDraft({
+        ...draft,
+        ingredients: [{ ...draft.ingredients[0], quantity: 0.1255 }],
+      }).success,
+    ).toBe(false)
     expect(
       validateRecipeDraft({
         ...draft,
@@ -247,7 +300,7 @@ describe('Food-based Recipe resolution', () => {
     ])
   })
 
-  it('defaults optional Recipe-only nutrition while accepting label calories', () => {
+  it('preserves unknown Recipe-only nutrition separately from known zero', () => {
     expect(
       recipeIngredientSchema.parse({
         kind: 'recipe-only',
@@ -260,10 +313,10 @@ describe('Food-based Recipe resolution', () => {
         protein: 0,
       }),
     ).toMatchObject({
-      fiber: 0,
-      sugar: 0,
-      sodium: 0,
-      potassium: 0,
+      fiber: null,
+      sugar: null,
+      sodium: null,
+      potassium: null,
     })
 
     const draft = addRecipeOnlyIngredient(
@@ -280,6 +333,7 @@ describe('Food-based Recipe resolution', () => {
       fat: 1,
       carbs: 7,
       protein: 2,
+      fiber: 0,
     })
 
     const result = validateRecipeDraft(edited)
@@ -295,9 +349,29 @@ describe('Food-based Recipe resolution', () => {
       carbs: 7,
       protein: 2,
       fiber: 0,
-      sugar: 0,
-      sodium: 0,
-      potassium: 0,
+      sugar: null,
+      sodium: null,
+      potassium: null,
+    })
+    expect(
+      resolveRecipe(
+        {
+          id: 'recipe-unknown-details',
+          name: 'Cocoa oats',
+          category: null,
+          instructions: null,
+          ingredients: result.data.ingredients,
+        },
+        new Map(),
+      ),
+    ).toMatchObject({
+      complete: false,
+      known: {
+        fiber: true,
+        sugar: false,
+        sodium: false,
+        potassium: false,
+      },
     })
     expect(formatRecipeCalories(47.5)).toBe('48 kcal')
   })
@@ -317,6 +391,121 @@ describe('Food-based Recipe resolution', () => {
       ),
     ).toEqual(['first', 'second'])
     expect(removeRecipeOnlyIngredient(named, 'first').ingredients).toHaveLength(1)
+  })
+
+  it('scales Recipe-only nutrition from the latest valid weight baseline', () => {
+    const draft = {
+      ...createRecipeDraft(),
+      name: 'Cocoa',
+      ingredients: [
+        {
+          kind: 'recipe-only' as const,
+          id: 'cocoa',
+          name: 'Cocoa',
+          weightGrams: 100,
+          calories: 500,
+          fat: 20,
+          carbs: 50,
+          protein: 10,
+          fiber: null,
+          sugar: 5,
+          sodium: 0,
+          potassium: null,
+        },
+      ],
+    }
+
+    const halved = updateRecipeOnlyIngredient(draft, 'cocoa', {
+      weightGrams: 50,
+    })
+    expect(halved.ingredients[0]).toMatchObject({
+      weightGrams: 50,
+      calories: 250,
+      fat: 10,
+      carbs: 25,
+      protein: 5,
+      fiber: null,
+      sugar: 2.5,
+      sodium: 0,
+      potassium: null,
+    })
+
+    const rebased = updateRecipeOnlyIngredient(halved, 'cocoa', {
+      calories: 300,
+    })
+    const quartered = updateRecipeOnlyIngredient(rebased, 'cocoa', {
+      weightGrams: 25,
+    })
+    expect(quartered.ingredients[0]).toMatchObject({
+      weightGrams: 25,
+      calories: 150,
+      fat: 5,
+      carbs: 12.5,
+      protein: 2.5,
+    })
+
+    const invalid = updateRecipeOnlyIngredient(rebased, 'cocoa', {
+      weightGrams: 0,
+    })
+    const restoredFromLatestValid = updateRecipeOnlyIngredient(
+      invalid,
+      'cocoa',
+      { weightGrams: 25 },
+      rebased.ingredients[0] as RecipeOnlyIngredient,
+    )
+    expect(restoredFromLatestValid.ingredients[0]).toMatchObject({
+      weightGrams: 25,
+      calories: 150,
+      fat: 5,
+      carbs: 12.5,
+      protein: 2.5,
+    })
+  })
+
+  it('keeps live draft totals useful while one ingredient row is invalid', () => {
+    const draft = {
+      ...createRecipeDraft(),
+      name: 'Mixed snack',
+      ingredients: [
+        { kind: 'food' as const, foodId: 'food-1', quantity: 1.25 },
+        {
+          kind: 'recipe-only' as const,
+          id: 'unfinished',
+          name: '',
+          weightGrams: 0,
+          calories: null,
+          fat: null,
+          carbs: null,
+          protein: null,
+          fiber: null,
+          sugar: null,
+          sodium: null,
+          potassium: null,
+        },
+      ],
+    }
+
+    expect(
+      resolveRecipeDraft(draft, new Map([['food-1', makeFood()]])),
+    ).toMatchObject({
+      complete: false,
+      nutrition: {
+        calories: 125,
+        protein: 5,
+      },
+      contributions: [
+        {
+          key: 'food-1',
+          valid: true,
+          nutrition: { calories: 125 },
+        },
+        {
+          key: 'unfinished',
+          valid: false,
+          nutrition: { calories: 0 },
+        },
+      ],
+    })
   })
 
   it('rejects nested Recipes at the ingredient schema boundary', () => {

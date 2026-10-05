@@ -150,7 +150,7 @@ export function aggregateShoppingList(
     .map((row) => ({
       ...row,
       weightGrams: row.ingredient.weightGrams * row.placementQuantity,
-      calories: row.ingredient.calories * row.placementQuantity,
+      calories: (row.ingredient.calories ?? 0) * row.placementQuantity,
     }))
     .sort(
       (a, b) =>

@@ -177,6 +177,32 @@ test('Recipe quantity and saved edits update every projection', async ({
   ).toBeVisible()
 })
 
+test('unknown Recipe nutrients stay marked across Recipe and Plan totals', async ({
+  page,
+}) => {
+  const state = stateWithRecipe({ placed: true })
+  const recipeOnly = state.recipes[0].ingredients.find(
+    (ingredient) => ingredient.kind === 'recipe-only',
+  )
+  if (!recipeOnly || recipeOnly.kind !== 'recipe-only') {
+    throw new Error('Expected Recipe-only fixture ingredient.')
+  }
+  recipeOnly.protein = null
+
+  await launchWithState(page, state)
+  await expect(page.getByText('Nutrition totals are incomplete.')).toBeVisible()
+  await expect(page.getByRole('article', { name: 'Protein' })).toContainText(
+    'g known',
+  )
+
+  await navigateTo(page, 'Recipes')
+  const recipe = page.getByRole('article', { name: 'Trail bowl' })
+  await expect(recipe).toContainText(
+    'Known totals only — this Recipe is incomplete.',
+  )
+  await expect(recipe.getByText('7 g known', { exact: true })).toBeVisible()
+})
+
 test('unused and placed Recipe deletion follows the confirmed impact', async ({
   page,
 }) => {

@@ -92,10 +92,12 @@ export function Modal({
   title,
   children,
   onClose,
+  className = '',
 }: {
   title: string
   children: ReactNode
   onClose: () => void
+  className?: string
 }) {
   const titleId = useId()
   const modalRef = useRef<HTMLElement>(null)
@@ -162,7 +164,7 @@ export function Modal({
     <div className="modal-backdrop" onMouseDown={onClose}>
       <section
         ref={modalRef}
-        className="modal"
+        className={`modal ${className}`.trim()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}

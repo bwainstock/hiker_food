@@ -105,6 +105,12 @@ export function isTenthStepQuantity(quantity: number) {
   return Math.abs(scaled - Math.round(scaled)) <= 1e-9
 }
 
+function hasAtMostThreeDecimalPlaces(quantity: number) {
+  if (!Number.isFinite(quantity)) return false
+  const scaled = quantity * 1000
+  return Math.abs(scaled - Math.round(scaled)) <= 1e-9
+}
+
 export const planItemQuantitySchema = finiteNumber
   .positive('Enter a quantity greater than 0.')
   .refine(
@@ -112,11 +118,18 @@ export const planItemQuantitySchema = finiteNumber
     'Enter a quantity in increments of 0.1.',
   )
 
+const recipeFoodQuantitySchema = finiteNumber
+  .positive('Enter a quantity greater than 0.')
+  .refine(
+    hasAtMostThreeDecimalPlaces,
+    'Enter a quantity with no more than 3 decimal places.',
+  )
+
 const foodIngredientSchema = z
   .object({
     kind: z.literal('food'),
     foodId: nonemptyString,
-    quantity: planItemQuantitySchema,
+    quantity: recipeFoodQuantitySchema,
   })
   .strict()
 
@@ -126,14 +139,14 @@ const recipeOnlyIngredientSchema = z
     id: nonemptyString,
     name: nonemptyString,
     weightGrams: finiteNumber.positive('Enter a weight greater than 0.'),
-    calories: finiteNumber.nonnegative(),
-    fat: finiteNumber.nonnegative(),
-    carbs: finiteNumber.nonnegative(),
-    protein: finiteNumber.nonnegative(),
-    fiber: finiteNumber.nonnegative().default(0),
-    sugar: finiteNumber.nonnegative().default(0),
-    sodium: finiteNumber.nonnegative().default(0),
-    potassium: finiteNumber.nonnegative().default(0),
+    calories: nullableNonnegativeNumber.default(null),
+    fat: nullableNonnegativeNumber.default(null),
+    carbs: nullableNonnegativeNumber.default(null),
+    protein: nullableNonnegativeNumber.default(null),
+    fiber: nullableNonnegativeNumber.default(null),
+    sugar: nullableNonnegativeNumber.default(null),
+    sodium: nullableNonnegativeNumber.default(null),
+    potassium: nullableNonnegativeNumber.default(null),
   })
   .strict()
 

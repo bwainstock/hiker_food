@@ -22,15 +22,18 @@ The blocking browser suite protects:
 1. clean launch and state-only navigation on desktop and mobile;
 2. planning Foods, quantity edits, Trail-day add/duplicate behavior, nutrition
    totals, Shopping-list aggregation, and reload persistence;
-3. custom-Food creation, use, validation, and safe in-use deletion;
-4. a known sodium/potassium supplement scenario;
-5. final-Trail-day, schema-version-2 Recipe-aware export/import, legacy and
+3. live Recipe ingredient and whole-Recipe nutrition, proportional
+   Recipe-only scaling, draft cancellation, persistence, and incomplete
+   nutrition across Recipe and Plan surfaces;
+4. custom-Food creation, use, validation, and safe in-use deletion;
+5. a known sodium/potassium supplement scenario;
+6. final-Trail-day, schema-version-2 Recipe-aware export/import, legacy and
    version-1 migration, reset, previous-valid-state, invalid/future backup
    rejection, and malformed-startup recovery contracts;
-6. unresolved Plan-item visibility, incomplete totals, replacement, and removal;
-7. Food and electrolyte search/filter/sort behavior;
-8. print invocation and print-media semantics;
-9. axe scans of every screen and new modal/recovery surfaces, plus a
+7. unresolved Plan-item visibility, incomplete totals, replacement, and removal;
+8. Food and electrolyte search/filter/sort behavior;
+9. print invocation and print-media semantics;
+10. axe scans of every screen and new modal/recovery surfaces, plus a
    keyboard-only primary journey.
 
 ## Commands

@@ -15,12 +15,13 @@ import { FoodPicker } from '../components/FoodPicker'
 import { PlanTargetPicker } from '../components/PlanTargetPicker'
 import { Badge, EmptyState, ProgressBar, StatCard } from '../components/Ui'
 import {
-  addNutrition,
+  addNutritionSummaries,
   densityLabel,
   fatLabel,
+  formatKnownNutritionValue,
   formatWeight,
   getMetrics,
-  nutritionForItems,
+  nutritionSummaryForItems,
   ratioLabel,
   round,
   sodiumLabel,
@@ -82,20 +83,28 @@ export function PlannerPage({
     : []
 
   const dayNutrition = useMemo(() => {
-    if (!activeDay) return addNutrition()
-    return addNutrition(
+    if (!activeDay) return addNutritionSummaries()
+    return addNutritionSummaries(
       ...MEALS.map((meal) =>
-        nutritionForItems(activeDay.meals[meal], foodsById, recipesById),
+        nutritionSummaryForItems(
+          activeDay.meals[meal],
+          foodsById,
+          recipesById,
+        ),
       ),
     )
   }, [activeDay, foodsById, recipesById])
 
   const tripNutrition = useMemo(
     () =>
-      addNutrition(
+      addNutritionSummaries(
         ...state.days.flatMap((day) =>
           MEALS.map((meal) =>
-            nutritionForItems(day.meals[meal], foodsById, recipesById),
+            nutritionSummaryForItems(
+              day.meals[meal],
+              foodsById,
+              recipesById,
+            ),
           ),
         ),
       ),
@@ -161,7 +170,7 @@ export function PlannerPage({
     )
   }
 
-  const metrics = getMetrics(dayNutrition)
+  const metrics = getMetrics(dayNutrition.nutrition)
   const density = densityLabel(metrics.caloriesPerOz)
 
   return (
@@ -175,18 +184,32 @@ export function PlannerPage({
         </div>
         <div>
           <span>Total energy</span>
-          <strong>{round(tripNutrition.calories).toLocaleString()} kcal</strong>
+          <strong>
+            {formatKnownNutritionValue(
+              `${round(tripNutrition.nutrition.calories).toLocaleString()} kcal`,
+              tripNutrition.known.calories,
+            )}
+          </strong>
           {unresolvedItems.length > 0 && <small>Plan totals incomplete</small>}
         </div>
         <div>
           <span>Food weight</span>
-          <strong>{formatWeight(tripNutrition.weightOz)}</strong>
+          <strong>
+            {formatKnownNutritionValue(
+              formatWeight(tripNutrition.nutrition.weightOz),
+              tripNutrition.known.weightOz,
+            )}
+          </strong>
         </div>
         <div>
           <span>Daily average</span>
           <strong>
-            {round(tripNutrition.calories / state.days.length).toLocaleString()}{' '}
-            kcal
+            {formatKnownNutritionValue(
+              `${round(
+                tripNutrition.nutrition.calories / state.days.length,
+              ).toLocaleString()} kcal`,
+              tripNutrition.known.calories,
+            )}
           </strong>
         </div>
       </section>
@@ -197,8 +220,8 @@ export function PlannerPage({
           <p>
             <strong>Nutrition totals are incomplete.</strong>{' '}
             {unresolvedItems.length} Plan item
-            {unresolvedItems.length === 1 ? '' : 's'}             reference unavailable or incomplete targets and are excluded from
-            complete nutrition totals.
+            {unresolvedItems.length === 1 ? '' : 's'}                         reference unavailable or incomplete targets. Known values are
+            included and affected totals are marked incomplete.
           </p>
         </div>
       )}
@@ -256,26 +279,47 @@ export function PlannerPage({
       <section className="stat-grid stat-grid-four">
         <StatCard
           label="Energy"
-          value={`${round(dayNutrition.calories).toLocaleString()} kcal`}
+          value={formatKnownNutritionValue(
+            `${round(dayNutrition.nutrition.calories).toLocaleString()} kcal`,
+            dayNutrition.known.calories,
+          )}
           detail={`${round(metrics.caloriesPerOz)} kcal per ounce`}
           accent="#e56f35"
         />
         <StatCard
           label="Packed weight"
-          value={formatWeight(dayNutrition.weightOz)}
-          detail={`${round(dayNutrition.weightGrams)} grams`}
+          value={formatKnownNutritionValue(
+            formatWeight(dayNutrition.nutrition.weightOz),
+            dayNutrition.known.weightOz,
+          )}
+          detail={formatKnownNutritionValue(
+            `${round(dayNutrition.nutrition.weightGrams)} grams`,
+            dayNutrition.known.weightGrams,
+          )}
           accent="#227b62"
         />
         <StatCard
           label="Protein"
-          value={`${round(dayNutrition.protein, 1)} g`}
-          detail={`${round(dayNutrition.carbs, 1)} g carbohydrates`}
+          value={formatKnownNutritionValue(
+            `${round(dayNutrition.nutrition.protein, 1)} g`,
+            dayNutrition.known.protein,
+          )}
+          detail={formatKnownNutritionValue(
+            `${round(dayNutrition.nutrition.carbs, 1)} g carbohydrates`,
+            dayNutrition.known.carbs,
+          )}
           accent="#4779b8"
         />
         <StatCard
           label="Sodium"
-          value={`${round(dayNutrition.sodium).toLocaleString()} mg`}
-          detail={`${round(dayNutrition.potassium).toLocaleString()} mg potassium`}
+          value={formatKnownNutritionValue(
+            `${round(dayNutrition.nutrition.sodium).toLocaleString()} mg`,
+            dayNutrition.known.sodium,
+          )}
+          detail={formatKnownNutritionValue(
+            `${round(dayNutrition.nutrition.potassium).toLocaleString()} mg potassium`,
+            dayNutrition.known.potassium,
+          )}
           accent="#9d6a35"
         />
       </section>
@@ -293,7 +337,7 @@ export function PlannerPage({
             const mealIncomplete = activeDayUnresolved.some(
               (item) => item.meal === meal,
             )
-            const nutrition = nutritionForItems(
+            const nutrition = nutritionSummaryForItems(
               mealItems,
               foodsById,
               recipesById,
@@ -325,9 +369,17 @@ export function PlannerPage({
                     </span>
                   </div>
                   <div className="meal-summary">
-                    <strong>{round(nutrition.calories)} kcal</strong>
+                    <strong>
+                      {formatKnownNutritionValue(
+                        `${round(nutrition.nutrition.calories)} kcal`,
+                        nutrition.known.calories,
+                      )}
+                    </strong>
                     <span>
-                      {round(nutrition.weightOz, 1)} oz
+                      {formatKnownNutritionValue(
+                        `${round(nutrition.nutrition.weightOz, 1)} oz`,
+                        nutrition.known.weightOz,
+                      )}
                       {mealIncomplete && ' · Meal totals incomplete'}
                     </span>
                   </div>
@@ -545,9 +597,13 @@ function MealPlanItem({
           <strong>{resolved?.label ?? `Unavailable ${isFoodTarget ? 'Food' : 'Recipe'}`}</strong>
           <span>
             {resolved
-              ? `${resolved.kind === 'recipe' ? 'Recipe · ' : ''}${round(
-                  resolved.nutrition.calories,
-                )} kcal · ${round(resolved.nutrition.weightOz, 1)} oz${
+              ? `${resolved.kind === 'recipe' ? 'Recipe · ' : ''}${formatKnownNutritionValue(
+                  `${round(resolved.nutrition.calories)} kcal`,
+                  resolved.known.calories,
+                )} · ${formatKnownNutritionValue(
+                  `${round(resolved.nutrition.weightOz, 1)} oz`,
+                  resolved.known.weightOz,
+                )}${
                   resolved.complete ? '' : ' · Incomplete'
                 }`
               : `${isFoodTarget ? 'Food' : 'Recipe'} ID: ${targetId}`}

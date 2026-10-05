@@ -48,10 +48,10 @@ describe('persisted state validation and recovery classification', () => {
         {
           kind: 'recipe-only',
           id: 'ingredient-spices',
-          fiber: 0,
-          sugar: 0,
-          sodium: 0,
-          potassium: 0,
+          fiber: null,
+          sugar: null,
+          sodium: null,
+          potassium: null,
         },
       ],
     })
@@ -151,7 +151,7 @@ describe('persisted state validation and recovery classification', () => {
       {
         ...validRecipe,
         ingredients: [
-          { kind: 'food', foodId: 'food-1', quantity: 1.25 },
+          { kind: 'food', foodId: 'food-1', quantity: 1.2345 },
         ],
       },
       {
