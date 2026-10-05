@@ -11,7 +11,7 @@ import {
   portableBackupV1Schema,
   portableBackupV2Schema,
 } from './schemas'
-import { resolveFoodRecipe } from './recipe'
+import { resolveRecipe } from './recipe'
 
 export const PLANNER_STORAGE_KEY = 'trail-rations-plan-v1'
 export const PREVIOUS_STATE_STORAGE_KEY =
@@ -212,7 +212,7 @@ export function findUnresolvedPlanItems(
             ]
           : (() => {
               const recipe = recipesById.get(item.target.id)
-              return recipe && resolveFoodRecipe(recipe, foodsById).complete
+              return recipe && resolveRecipe(recipe, foodsById).complete
                 ? []
                 : [
                     {

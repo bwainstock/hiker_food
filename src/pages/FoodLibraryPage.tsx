@@ -174,7 +174,7 @@ export function FoodLibraryPage({
                           )
                           if (
                             impact.planItemCount === 0 &&
-                            impact.recipeIngredientCount === 0
+                            impact.foodIngredientCount === 0
                           ) {
                             setState((current) =>
                               deleteCustomFood(current, food.id),
@@ -224,8 +224,8 @@ export function FoodLibraryPage({
               </strong>{' '}
               and{' '}
               <strong>
-                {pendingImpact.recipeIngredientCount} Recipe Food ingredient
-                {pendingImpact.recipeIngredientCount === 1 ? '' : 's'}
+                {pendingImpact.foodIngredientCount} Food ingredient
+                {pendingImpact.foodIngredientCount === 1 ? '' : 's'}
               </strong>
               {' '}reference this custom Food.
             </p>

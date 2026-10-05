@@ -15,7 +15,7 @@ import {
   removeFoodIngredient,
   removeRecipeOnlyIngredient,
   replaceFoodIngredient,
-  resolveFoodRecipe,
+  resolveRecipe,
   saveRecipeDraft,
   updateFoodIngredientQuantity,
   updateRecipeOnlyIngredient,
@@ -246,7 +246,7 @@ function RecipeCard({
   onEdit: () => void
   onDelete: () => void
 }) {
-  const summary = resolveFoodRecipe(recipe, foodsById)
+  const summary = resolveRecipe(recipe, foodsById)
   const { nutrition } = summary
   const metrics = [
     [

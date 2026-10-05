@@ -173,7 +173,7 @@ describe('Shopping-list aggregation', () => {
       ])
   })
 
-  it('retains unavailable Recipe Food quantity, source, and Plan locations', () => {
+  it('retains unavailable Food-ingredient quantity, Recipe source, and Plan locations', () => {
     const recipe = makeRecipe({
       id: 'recipe-incomplete',
       name: 'Partial bowl',
@@ -198,8 +198,9 @@ describe('Shopping-list aggregation', () => {
         foodId: 'retired-food',
         quantity: 3,
         itemCount: 1,
+        directItemCount: 0,
         locations: ['Day 1 · Dinner'],
-        recipeSources: ['Partial bowl'],
+        recipeSources: [{ id: 'recipe-incomplete', name: 'Partial bowl' }],
       },
     ])
   })

@@ -5,7 +5,7 @@ import type {
 } from '../types'
 import { MEALS } from '../types'
 import { EN_US_COLLATOR } from './catalog'
-import { resolveFoodRecipe } from './recipe'
+import { resolveRecipe } from './recipe'
 
 export interface ShoppingRow {
   food: Food
@@ -17,8 +17,12 @@ export interface UnresolvedShoppingRow {
   foodId: string
   quantity: number
   itemCount: number
+  directItemCount: number
   locations: string[]
-  recipeSources: string[]
+  recipeSources: {
+    id: string
+    name: string
+  }[]
 }
 
 export interface RecipeOnlyShoppingRow {
@@ -42,8 +46,12 @@ export function aggregateShoppingList(
     {
       quantity: number
       itemCount: number
+      directItemCount: number
       locations: string[]
-      recipeSources: string[]
+      recipeSources: {
+        id: string
+        name: string
+      }[]
     }
   >()
   const recipeOnly = new Map<
@@ -56,20 +64,22 @@ export function aggregateShoppingList(
     foodId: string,
     quantity: number,
     location: string,
-    recipeSource?: string,
+    recipeSource?: { id: string; name: string },
   ) => {
     const current = quantities.get(foodId) ?? {
       quantity: 0,
       itemCount: 0,
+      directItemCount: 0,
       locations: [],
       recipeSources: [],
     }
     current.quantity += quantity
     current.itemCount += 1
+    if (!recipeSource) current.directItemCount += 1
     if (!current.locations.includes(location)) current.locations.push(location)
     if (
       recipeSource &&
-      !current.recipeSources.includes(recipeSource)
+      !current.recipeSources.some(({ id }) => id === recipeSource.id)
     ) {
       current.recipeSources.push(recipeSource)
     }
@@ -86,13 +96,13 @@ export function aggregateShoppingList(
         }
         const recipe = recipesById.get(item.target.id)
         if (!recipe) return
-        const resolved = resolveFoodRecipe(recipe, foodsById)
+        const resolved = resolveRecipe(recipe, foodsById)
         resolved.foodContributions.forEach((ingredient) =>
           addFoodContribution(
             ingredient.foodId,
             ingredient.quantity * item.quantity,
             location,
-            recipe.name,
+            { id: recipe.id, name: recipe.name },
           ),
         )
         resolved.recipeOnlyContributions.forEach((ingredient) => {

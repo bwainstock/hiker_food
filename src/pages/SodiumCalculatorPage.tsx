@@ -8,7 +8,7 @@ import {
   round,
 } from '../lib/nutrition'
 import { calculateSupplementScenario } from '../lib/supplements'
-import { resolveFoodRecipe } from '../lib/recipe'
+import { resolveRecipe } from '../lib/recipe'
 import type { Food, PlannerState, Recipe } from '../types'
 import { MEALS } from '../types'
 
@@ -50,7 +50,7 @@ export function SodiumCalculatorPage({
               item.target.kind === 'food'
                 ? !foodsById.has(item.target.id)
                 : !recipesById.has(item.target.id) ||
-                  !resolveFoodRecipe(
+                  !resolveRecipe(
                     recipesById.get(item.target.id)!,
                     foodsById,
                   ).complete,

@@ -35,11 +35,13 @@ export function ShoppingPage({
   setState,
   foods,
   foodsById,
+  onEditRecipes,
 }: {
   state: PlannerState
   setState: PlannerStateUpdater
   foods: Food[]
   foodsById: Map<string, Food>
+  onEditRecipes: () => void
 }) {
   const [packed, setPacked] = useState<Set<string>>(new Set())
   const [replacingFoodId, setReplacingFoodId] = useState<string | null>(null)
@@ -217,68 +219,98 @@ export function ShoppingPage({
             </div>
           </div>
           <div className="shopping-list">
-            {unresolved.map((row) => (
-              <div className="shopping-row unresolved-shopping-row" key={row.foodId}>
-                <span className="unresolved-mark">
-                  <AlertTriangle size={16} />
-                </span>
-                <span className="shopping-name">
-                  <strong>Unavailable food</strong>
-                  <small>
-                    Food ID: {row.foodId} · {row.itemCount} Plan item
-                    {row.itemCount === 1 ? '' : 's'}
-                    {' · '}
-                    {row.locations.join(', ')}
-                    {row.recipeSources.length > 0 &&
-                      ` · ${row.recipeSources.join(', ')} · From Recipe: ${row.recipeSources.join(', ')}`}
-                  </small>
-                </span>
-                <span className="shopping-quantity">
-                  <strong>{round(row.quantity, 1)}</strong>
-                  <small>servings</small>
-                </span>
-                <span className="unresolved-actions print-hidden">
-                  <button
-                    className="button button-quiet item-action"
-                    type="button"
-                    aria-expanded={replacingFoodId === row.foodId}
-                    onClick={() =>
-                      setReplacingFoodId((current) =>
-                        current === row.foodId ? null : row.foodId,
-                      )
-                    }
-                  >
-                    Replace
-                  </button>
-                  <button
-                    className="icon-button danger"
-                    type="button"
-                    aria-label={`Remove unavailable food ${row.foodId}`}
-                    onClick={() =>
-                      setState((current) =>
-                        removeFoodReferences(current, row.foodId),
-                      )
-                    }
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </span>
-                {replacingFoodId === row.foodId && (
-                  <div className="unresolved-replacement">
-                    <FoodPicker
-                      foods={foods}
-                      placeholder={`Choose replacement for ${row.foodId}…`}
-                      onSelect={(food) => {
-                        setState((current) =>
-                          replaceFoodReferences(current, row.foodId, food.id),
-                        )
-                        setReplacingFoodId(null)
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            ))}
+            {unresolved.map((row) => {
+              const recipeNames = row.recipeSources.map(({ name }) => name)
+              const hasRecipeReferences = recipeNames.length > 0
+              return (
+                <div
+                  className="shopping-row unresolved-shopping-row"
+                  key={row.foodId}
+                  role="group"
+                  aria-label={`Unavailable food ${row.foodId}`}
+                >
+                  <span className="unresolved-mark">
+                    <AlertTriangle size={16} />
+                  </span>
+                  <span className="shopping-name">
+                    <strong>Unavailable food</strong>
+                    <small>
+                      Food ID: {row.foodId} · {row.itemCount} Plan item
+                      {row.itemCount === 1 ? '' : 's'}
+                      {' · '}
+                      {row.locations.join(', ')}
+                      {hasRecipeReferences &&
+                        ` · From Recipe: ${recipeNames.join(', ')}`}
+                    </small>
+                    {hasRecipeReferences && (
+                      <small>
+                        {row.directItemCount > 0
+                          ? `Repair the Food ingredient in ${recipeNames.join(', ')} before repairing direct Plan items.`
+                          : `Repair this Food ingredient in ${recipeNames.join(', ')}.`}
+                      </small>
+                    )}
+                  </span>
+                  <span className="shopping-quantity">
+                    <strong>{round(row.quantity, 1)}</strong>
+                    <small>servings</small>
+                  </span>
+                  {!hasRecipeReferences && (
+                    <span className="unresolved-actions print-hidden">
+                      <button
+                        className="button button-quiet item-action"
+                        type="button"
+                        aria-expanded={replacingFoodId === row.foodId}
+                        onClick={() =>
+                          setReplacingFoodId((current) =>
+                            current === row.foodId ? null : row.foodId,
+                          )
+                        }
+                      >
+                        Replace
+                      </button>
+                      <button
+                        className="icon-button danger"
+                        type="button"
+                        aria-label={`Remove unavailable food ${row.foodId}`}
+                        onClick={() =>
+                          setState((current) =>
+                            removeFoodReferences(current, row.foodId),
+                          )
+                        }
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </span>
+                  )}
+                  {hasRecipeReferences && (
+                    <span className="unresolved-actions print-hidden">
+                      <button
+                        className="button button-quiet item-action"
+                        type="button"
+                        aria-label={`Edit Recipes using unavailable food ${row.foodId}`}
+                        onClick={onEditRecipes}
+                      >
+                        Edit Recipes
+                      </button>
+                    </span>
+                  )}
+                  {!hasRecipeReferences && replacingFoodId === row.foodId && (
+                    <div className="unresolved-replacement">
+                      <FoodPicker
+                        foods={foods}
+                        placeholder={`Choose replacement for ${row.foodId}…`}
+                        onSelect={(food) => {
+                          setState((current) =>
+                            replaceFoodReferences(current, row.foodId, food.id),
+                          )
+                          setReplacingFoodId(null)
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </section>
       )}

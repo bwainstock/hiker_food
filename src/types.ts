@@ -89,7 +89,7 @@ export const RECIPE_CATEGORIES = [
 
 export type RecipeCategory = (typeof RECIPE_CATEGORIES)[number]
 
-export interface FoodRecipeIngredient {
+export interface FoodIngredient {
   kind: 'food'
   foodId: string
   quantity: number
@@ -111,7 +111,7 @@ export interface RecipeOnlyIngredient {
 }
 
 export type RecipeIngredient =
-  | FoodRecipeIngredient
+  | FoodIngredient
   | RecipeOnlyIngredient
 
 export interface Recipe {

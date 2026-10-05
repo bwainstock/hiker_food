@@ -134,6 +134,7 @@ function App() {
           setState={setState}
           foods={foods}
           foodsById={foodsById}
+          onEditRecipes={() => setRoute('recipes')}
         />
       )}
       {route === 'foods' && (
