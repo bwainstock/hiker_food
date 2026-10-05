@@ -16,7 +16,9 @@
     "test:e2e": "npm run build && npm run test:e2e:preview",
     "test:e2e:cross-browser:preview": "playwright test --project=firefox --project=webkit",
     "test:e2e:cross-browser": "npm run build && npm run test:e2e:cross-browser:preview",
-    "verify": "npm run lint && npm run build && npm run test:unit && npm run test:e2e:smoke:preview"
+    "verify:cloudflare": "npm run build && npm run verify:cloudflare:built",
+    "verify:cloudflare:built": "node scripts/verify-cloudflare-config.mjs && wrangler deploy --dry-run",
+    "verify": "npm run lint && npm run build && npm run verify:cloudflare:built && npm run test:unit && npm run test:e2e:smoke:preview"
   },
   "dependencies": {
     "lucide-react": "^1.52.0",
@@ -31,6 +33,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "jsonc-parser": "^3.3.1",
     "oxlint": "^1.81.0",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",

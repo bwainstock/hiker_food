@@ -38,6 +38,12 @@ npx wrangler login
 npm run deploy
 ```
 
+Validate the production and preview configuration without uploading it:
+
+```bash
+npm run verify:cloudflare
+```
+
 Cloudflare Workers Builds watches `main` and uses `npm run build` followed by
 `npx wrangler deploy`. Non-production branches use `npx wrangler preview` for
 frontend preview URLs. The Worker configuration serves `dist` and falls back to

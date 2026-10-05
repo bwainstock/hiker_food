@@ -3,7 +3,9 @@
 ## Test layers
 
 - **Static verification**: Oxlint and the TypeScript/Vite production build catch
-  style, hook, type, and bundling failures.
+  style, hook, type, and bundling failures. The Cloudflare configuration check
+  verifies the static-assets, SPA fallback, and preview contracts, then runs a
+  Wrangler dry run.
 - **Fast tests**: Vitest covers deterministic domain rules, schemas, catalog
   contracts, parsing, aggregation, calculations, and pure search/filter/sort
   behavior.
@@ -35,6 +37,7 @@ The blocking browser suite protects:
 ```bash
 npm run lint
 npm run build
+npm run verify:cloudflare
 npm run test:unit
 npm run test:e2e:smoke
 npm run test:e2e
@@ -43,9 +46,11 @@ npm run verify
 ```
 
 `test:e2e:smoke`, `test:e2e`, and `test:e2e:cross-browser` build first, then
-exercise the Vite preview. `verify` runs lint, build/type-check, Vitest, and the
-Chromium smoke runner against that already-built preview. The development server
-is a convenience only and is not canonical verification.
+exercise the Vite preview. `verify:cloudflare` builds and validates the
+deployment configuration without uploading it. `verify` runs lint,
+build/type-check, the Cloudflare check, Vitest, and the Chromium smoke runner
+against that already-built preview. The development server is a convenience
+only and is not canonical verification.
 
 ## Data and fixtures
 
