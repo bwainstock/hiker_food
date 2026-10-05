@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { KeyboardEvent, ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
 export function Badge({
@@ -108,10 +109,23 @@ export function Modal({
 
   useEffect(() => {
     const modal = modalRef.current
+    const appRoot = document.getElementById('root')
+    const previousInert = appRoot?.getAttribute('inert')
+    const previousAriaHidden = appRoot?.getAttribute('aria-hidden')
+    appRoot?.setAttribute('inert', '')
+    appRoot?.setAttribute('aria-hidden', 'true')
     if (!modal?.contains(document.activeElement)) {
       closeRef.current?.focus()
     }
     return () => {
+      if (previousInert === null) appRoot?.removeAttribute('inert')
+      else if (previousInert !== undefined) {
+        appRoot?.setAttribute('inert', previousInert)
+      }
+      if (previousAriaHidden === null) appRoot?.removeAttribute('aria-hidden')
+      else if (previousAriaHidden !== undefined) {
+        appRoot?.setAttribute('aria-hidden', previousAriaHidden)
+      }
       requestAnimationFrame(() => {
         if (opener?.isConnected && !modal?.isConnected) opener.focus()
       })
@@ -144,7 +158,7 @@ export function Modal({
     }
   }
 
-  return (
+  return createPortal(
     <div className="modal-backdrop" onMouseDown={onClose}>
       <section
         ref={modalRef}
@@ -169,6 +183,7 @@ export function Modal({
         </div>
         {children}
       </section>
-    </div>
+    </div>,
+    document.body,
   )
 }

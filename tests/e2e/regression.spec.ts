@@ -65,6 +65,161 @@ test('Recipe quantity and saved edits update every projection', async ({
   ).toBeVisible()
 })
 
+test('unused and placed Recipe deletion follows the confirmed impact', async ({
+  page,
+}) => {
+  const state = stateWithRecipe({ placed: true })
+  state.days[0].meals.Breakfast.push({
+    id: 'second-recipe-placement',
+    target: { kind: 'recipe', id: 'recipe-trail-bowl' },
+    quantity: 1,
+  })
+  state.recipes.push({
+    id: 'recipe-unused',
+    name: 'Unused Recipe',
+    category: null,
+    instructions: null,
+    ingredients: [
+      {
+        kind: 'food',
+        foodId: 'justin-s-classic-peanut-butter-19',
+        quantity: 1,
+      },
+    ],
+  })
+  await launchWithState(page, state)
+  await navigateTo(page, 'Recipes')
+
+  await page.getByRole('button', { name: 'Delete Unused Recipe' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(
+    page.getByRole('article', { name: 'Unused Recipe' }),
+  ).toHaveCount(0)
+
+  const opener = page.getByRole('button', { name: 'Delete Trail bowl' })
+  await opener.focus()
+  await page.keyboard.press('Enter')
+  const dialog = page.getByRole('dialog', { name: 'Delete Trail bowl?' })
+  await expect(dialog).toContainText('2 Plan items')
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(opener).toBeFocused()
+
+  await page.keyboard.press('Enter')
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(
+    page.getByRole('article', { name: 'Trail bowl' }),
+  ).toBeVisible()
+  await navigateTo(page, 'Meal planner')
+  await expect(page.getByText('Trail bowl', { exact: true })).toHaveCount(2)
+
+  await navigateTo(page, 'Recipes')
+  await page.getByRole('button', { name: 'Delete Trail bowl' }).click()
+  await dialog.getByRole('button', { name: 'Delete Recipe and 2 Plan items' }).click()
+  await expect(
+    page.getByRole('article', { name: 'Trail bowl' }),
+  ).toHaveCount(0)
+  await navigateTo(page, 'Meal planner')
+  await expect(page.getByText('Trail bowl', { exact: true })).toHaveCount(0)
+})
+
+test('custom Food deletion separates direct and Recipe impact', async ({
+  page,
+}) => {
+  const customFood = createCustomFood(
+    {
+      brand: 'Delete Test',
+      flavor: 'Shared Food',
+      category: 'Snack',
+      prep: 'N/A',
+      servingGrams: 30,
+      calories: 120,
+      fat: 4,
+      sodium: 10,
+      potassium: 20,
+      carbs: 20,
+      fiber: 2,
+      sugar: 3,
+      protein: 5,
+    },
+    'custom-delete-shared',
+  )
+  const state = emptyState(fixedDay(), [customFood])
+  state.days[0].meals.Lunch.push({
+    id: 'direct-custom-placement',
+    target: { kind: 'food', id: customFood.id },
+    quantity: 1,
+  })
+  state.recipes.push({
+    id: 'recipe-custom-reference',
+    name: 'Shared Food Recipe',
+    category: 'Lunch',
+    instructions: null,
+    ingredients: [
+      { kind: 'food', foodId: customFood.id, quantity: 1.5 },
+    ],
+  })
+  await launchWithState(page, state)
+  await navigateTo(page, 'Food library')
+  await page.getByRole('textbox', { name: 'Search foods' }).fill('Delete Test')
+
+  const opener = page.getByRole('button', {
+    name: 'Delete Delete Test Shared Food',
+  })
+  await opener.click()
+  const dialog = page.getByRole('dialog', {
+    name: 'Delete Delete Test Shared Food?',
+  })
+  await expect(dialog).toContainText('1 direct Plan item')
+  await expect(dialog).toContainText('1 Recipe Food ingredient')
+  await expect(dialog).toContainText(
+    'Direct placements will be removed. Recipe references will remain unavailable and repairable.',
+  )
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused()
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(opener).toBeFocused()
+  await expect(opener).toBeVisible()
+
+  await navigateTo(page, 'Meal planner')
+  await expect(
+    page.getByText('Delete Test Shared Food', { exact: true }),
+  ).toBeVisible()
+  await navigateTo(page, 'Recipes')
+  await page.getByRole('button', { name: 'Edit Shared Food Recipe' }).click()
+  const editor = page.getByRole('dialog', { name: 'Edit Shared Food Recipe' })
+  await expect(editor).toContainText('Delete Test Shared Food')
+  await editor.getByRole('button', { name: 'Cancel' }).click()
+  await navigateTo(page, 'Food library')
+  await page.getByRole('textbox', { name: 'Search foods' }).fill('Delete Test')
+
+  const restoredOpener = page.getByRole('button', {
+    name: 'Delete Delete Test Shared Food',
+  })
+  await restoredOpener.click()
+  await dialog
+    .getByRole('button', {
+      name: 'Delete Food and remove 1 direct Plan item',
+    })
+    .click()
+  await expect(
+    page.getByText('Delete Test Shared Food', { exact: true }),
+  ).toHaveCount(0)
+  await navigateTo(page, 'Meal planner')
+  await expect(
+    page.getByText('Delete Test Shared Food', { exact: true }),
+  ).toHaveCount(0)
+  await navigateTo(page, 'Recipes')
+  const recipe = page.getByRole('article', { name: 'Shared Food Recipe' })
+  await expect(recipe).toContainText(
+    'Some Foods are unavailable, so these totals are incomplete.',
+  )
+  await page.getByRole('button', { name: 'Edit Shared Food Recipe' }).click()
+  await expect(
+    page.getByRole('dialog', { name: 'Edit Shared Food Recipe' }),
+  ).toContainText('custom-delete-shared')
+})
+
 test('reset cancel/confirm, previous-state restore, and final-day invariant', async ({
   page,
 }) => {
