@@ -12,22 +12,27 @@ import {
   stateWithRecipe,
 } from './helpers'
 
-test('axe scan on every screen', async ({ page }) => {
+const screens = [
+  'Shopping list',
+  'Food library',
+  'Recipes',
+  'Electrolytes',
+  'Na/K calculator',
+  'Trail guide',
+] as const
+
+test('axe scan on Plan screen', async ({ page }) => {
   await launchWithState(page, emptyState())
   await expectNoAxeViolations(page)
+})
 
-  for (const screen of [
-    'Shopping list',
-    'Food library',
-    'Recipes',
-    'Electrolytes',
-    'Na/K calculator',
-    'Trail guide',
-  ]) {
+for (const screen of screens) {
+  test(`axe scan on ${screen} screen`, async ({ page }) => {
+    await launchWithState(page, emptyState())
     await navigateTo(page, screen)
     await expectNoAxeViolations(page)
-  }
-})
+  })
+}
 
 test('axe scan on Recipe editor and validation errors', async ({ page }) => {
   await launchWithState(page, emptyState())
