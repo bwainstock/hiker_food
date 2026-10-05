@@ -22,7 +22,7 @@ test('reset cancel/confirm, previous-state restore, and final-day invariant', as
   const original = emptyState(fixedDay('original-day', 'Original menu'))
   original.days[0].meals.Breakfast.push({
     id: 'original-item',
-    foodId: 'justin-s-classic-peanut-butter-19',
+    target: { kind: 'food', id: 'justin-s-classic-peanut-butter-19' },
     quantity: 1,
   })
   await launchWithState(page, original)
@@ -53,7 +53,7 @@ test('reset cancel/confirm, previous-state restore, and final-day invariant', as
     previousDialog.getByRole('button', { name: 'Download' }).click(),
   ])
   expect(JSON.parse(await readDownload(previousDownload))).toMatchObject({
-    schemaVersion: 1,
+    schemaVersion: 2,
     state: { days: [{ name: 'Original menu' }] },
   })
   await previousDialog
@@ -105,7 +105,7 @@ test('modal close paths restore focus to the connected opener', async ({
   await expect(opener).toBeFocused()
 })
 
-test('version 1 export, atomic import, invalid import, and Shopping-list restoration', async ({
+test('version 2 export, atomic import, invalid import, and Shopping-list restoration', async ({
   page,
 }) => {
   const customFood = createCustomFood(
@@ -132,7 +132,7 @@ test('version 1 export, atomic import, invalid import, and Shopping-list restora
   )
   recognizable.days[0].meals.Dinner.push({
     id: 'canyon-dinner',
-    foodId: customFood.id,
+    target: { kind: 'food', id: customFood.id },
     quantity: 2,
   })
   await launchWithState(page, recognizable)
@@ -142,11 +142,11 @@ test('version 1 export, atomic import, invalid import, and Shopping-list restora
     page.getByRole('button', { name: 'Export' }).click(),
   ])
   expect(exportDownload.suggestedFilename()).toBe(
-    'trail-rations-backup-v1.json',
+    'trail-rations-backup-v2.json',
   )
   const exported = await readDownload(exportDownload)
   expect(JSON.parse(exported)).toMatchObject({
-    schemaVersion: 1,
+    schemaVersion: 2,
     state: {
       days: [{ name: 'Canyon menu' }],
       customFoods: [{ id: 'custom-canyon-noodles' }],
@@ -163,7 +163,7 @@ test('version 1 export, atomic import, invalid import, and Shopping-list restora
     buffer: Buffer.from(exported),
   })
   const preview = page.getByRole('dialog', { name: 'Import this backup?' })
-  await expect(preview).toContainText('version 1 backup')
+  await expect(preview).toContainText('version 2 backup')
   await expect(preview.getByLabel('State preview')).toContainText('1')
   await preview
     .getByRole('button', { name: 'Replace current state' })
@@ -249,7 +249,7 @@ test('legacy custom Foods load with safe labels and zero serving weight', async 
   const state = emptyState(undefined, [legacyFood])
   state.days[0].meals.Dinner.push({
     id: 'legacy-dinner',
-    foodId: legacyFood.id,
+    target: { kind: 'food', id: legacyFood.id },
     quantity: 1.2,
   })
   await launchWithState(page, state)
@@ -316,7 +316,7 @@ test('invalid quantity drafts do not commit or persist', async ({ page }) => {
   const state = emptyState()
   state.days[0].meals.Breakfast.push({
     id: 'quantity-item',
-    foodId: 'justin-s-classic-peanut-butter-19',
+    target: { kind: 'food', id: 'justin-s-classic-peanut-butter-19' },
     quantity: 1,
   })
   await launchWithState(page, state)
@@ -448,12 +448,12 @@ test('unresolved Plan items stay visible and can be replaced or removed', async 
   const day = fixedDay('unresolved-day', 'Unresolved menu')
   day.meals.Breakfast.push({
     id: 'missing-breakfast',
-    foodId: 'retired-breakfast-food',
+    target: { kind: 'food', id: 'retired-breakfast-food' },
     quantity: 2.3,
   })
   day.meals.Lunch.push({
     id: 'missing-lunch',
-    foodId: 'retired-lunch-food',
+    target: { kind: 'food', id: 'retired-lunch-food' },
     quantity: 1.2,
   })
   await launchWithState(page, emptyState(day))
@@ -514,7 +514,7 @@ test('sodium calculator withholds recommendations for unresolved Plan items', as
   const completeDay = fixedDay('sodium-complete-day', 'Complete sodium day')
   day.meals.Lunch.push({
     id: 'missing-sodium-item',
-    foodId: 'retired-sodium-food',
+    target: { kind: 'food', id: 'retired-sodium-food' },
     quantity: 1.2,
   })
   const state = emptyState(day)
@@ -557,7 +557,7 @@ test('Print invokes the browser and exposes print-media list semantics', async (
   const state = emptyState()
   state.days[0].meals.Breakfast.push({
     id: 'print-item',
-    foodId: 'justin-s-classic-peanut-butter-19',
+    target: { kind: 'food', id: 'justin-s-classic-peanut-butter-19' },
     quantity: 2,
   })
   await launchWithState(page, state)

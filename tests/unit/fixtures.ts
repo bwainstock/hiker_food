@@ -71,7 +71,7 @@ export function makeDay(id = 'day-1', name = 'Day 1'): DayPlan {
 }
 
 export function makeState(day = makeDay()): PlannerState {
-  return { days: [day], customFoods: [] }
+  return { days: [day], customFoods: [], recipes: [] }
 }
 
 export function makeNutrition(

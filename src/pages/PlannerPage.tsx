@@ -316,7 +316,10 @@ export function PlannerPage({
                     )}
                     <div className="meal-items">
                       {mealItems.map((item) => {
-                        const food = foodsById.get(item.foodId)
+                        const food =
+                          item.target.kind === 'food'
+                            ? foodsById.get(item.target.id)
+                            : undefined
                         return (
                           <MealPlanItem
                             key={`${item.id}:${item.quantity}`}
@@ -343,7 +346,13 @@ export function PlannerPage({
                                   ...day.meals,
                                   [meal]: day.meals[meal].map((candidate) =>
                                     candidate.id === item.id
-                                      ? { ...candidate, foodId }
+                                      ? {
+                                          ...candidate,
+                                          target: {
+                                            kind: 'food',
+                                            id: foodId,
+                                          },
+                                        }
                                       : candidate,
                                   ),
                                 },
@@ -375,7 +384,7 @@ export function PlannerPage({
                               ...day.meals[meal],
                               {
                                 id: crypto.randomUUID(),
-                                foodId: food.id,
+                                target: { kind: 'food', id: food.id },
                                 quantity: 1,
                               },
                             ],
@@ -487,7 +496,10 @@ function MealPlanItem({
   onRemove: () => void
 }) {
   const [replacing, setReplacing] = useState(false)
-  const label = food?.name ?? `Unavailable food ${item.foodId}`
+  const targetId = item.target.id
+  const isFoodTarget = item.target.kind === 'food'
+  const label = food?.name ??
+    `${isFoodTarget ? 'Unavailable food' : 'Recipe'} ${targetId}`
 
   return (
     <>
@@ -503,7 +515,7 @@ function MealPlanItem({
                   (food.servingOz ?? 0) * item.quantity,
                   1,
                 )} oz`
-              : `Food ID: ${item.foodId}`}
+              : `${isFoodTarget ? 'Food' : 'Recipe'} ID: ${targetId}`}
           </span>
         </div>
         <QuantityInput
@@ -512,7 +524,7 @@ function MealPlanItem({
           onCommit={onQuantity}
         />
         <div className="meal-item-actions">
-          {!food && (
+          {!food && isFoodTarget && (
             <button
               className="button button-quiet item-action"
               type="button"
@@ -532,11 +544,11 @@ function MealPlanItem({
           </button>
         </div>
       </div>
-      {!food && replacing && (
+      {!food && isFoodTarget && replacing && (
         <div className="replacement-picker">
           <FoodPicker
             foods={foods}
-            placeholder={`Choose replacement for ${item.foodId}…`}
+            placeholder={`Choose replacement for ${targetId}…`}
             onSelect={(replacement) => {
               onReplace(replacement.id)
               setReplacing(false)

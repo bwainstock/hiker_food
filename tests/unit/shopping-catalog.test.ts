@@ -30,9 +30,9 @@ describe('Shopping-list aggregation', () => {
     const sameNameB = makeFood({ id: 'food-b', name: 'Same Name' })
     const day = makeDay()
     day.meals.Breakfast.push(
-      { id: 'item-a1', foodId: 'food-a', quantity: 1 },
-      { id: 'item-a2', foodId: 'food-a', quantity: 2 },
-      { id: 'item-b1', foodId: 'food-b', quantity: 4 },
+      { id: 'item-a1', target: { kind: 'food', id: 'food-a' }, quantity: 1 },
+      { id: 'item-a2', target: { kind: 'food', id: 'food-a' }, quantity: 2 },
+      { id: 'item-b1', target: { kind: 'food', id: 'food-b' }, quantity: 4 },
     )
     const result = aggregateShoppingList(
       makeState(day),
@@ -53,8 +53,16 @@ describe('Shopping-list aggregation', () => {
   it('retains unresolved stable IDs in a separate aggregate', () => {
     const day = makeDay()
     day.meals.Lunch.push(
-      { id: 'missing-1', foodId: 'missing', quantity: 1.2 },
-      { id: 'missing-2', foodId: 'missing', quantity: 2.3 },
+      {
+        id: 'missing-1',
+        target: { kind: 'food', id: 'missing' },
+        quantity: 1.2,
+      },
+      {
+        id: 'missing-2',
+        target: { kind: 'food', id: 'missing' },
+        quantity: 2.3,
+      },
     )
     const result = aggregateShoppingList(makeState(day), new Map())
     expect(result.rows).toEqual([])
@@ -107,7 +115,7 @@ describe('catalog contracts', () => {
     expect(() => validateStarterFoodIds(BUILT_IN_FOODS)).not.toThrow()
     const state = createStarterState(BUILT_IN_FOODS)
     expect(
-      state.days[0].meals.Breakfast[0].foodId,
+      state.days[0].meals.Breakfast[0].target.id,
     ).toBe('backpacker-s-pantry-granola-with-bananas-milk-399')
     expect(
       STARTER_PLAN_ITEMS.every(([, foodId]) =>
