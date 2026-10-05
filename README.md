@@ -26,6 +26,23 @@ in the planner to download a versioned JSON backup. **Import**, **Reset**, and
 **Previous** provide previewed, one-step recovery operations without merging
 data.
 
+## Deploy
+
+Trail Rations is deployed as Cloudflare Workers Static Assets. Authenticate the
+Cloudflare CLI once, then build and deploy the production Worker:
+
+<https://trail-rations.tigren.workers.dev>
+
+```bash
+npx wrangler login
+npm run deploy
+```
+
+Cloudflare Workers Builds watches `main` and uses `npm run build` followed by
+`npx wrangler deploy`. Non-production branches use `npx wrangler preview` for
+frontend preview URLs. The Worker configuration serves `dist` and falls back to
+`index.html` for application routes.
+
 ## Verification
 
 ```bash
