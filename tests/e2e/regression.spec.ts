@@ -13,8 +13,57 @@ import {
   navigateTo,
   readDownload,
   selectImportFile,
+  stateWithRecipe,
   tabUntil,
 } from './helpers'
+
+test('Recipe quantity and saved edits update every projection', async ({
+  page,
+}) => {
+  await launchWithState(page, stateWithRecipe({ placed: true }))
+  await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
+    '500 kcal',
+  )
+
+  const quantity = page.getByRole('spinbutton', {
+    name: 'Quantity for Trail bowl',
+  })
+  await quantity.fill('1.5')
+  await quantity.press('Tab')
+  await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
+    '375 kcal',
+  )
+
+  await navigateTo(page, 'Recipes')
+  await page.getByRole('button', { name: 'Edit Trail bowl' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Edit Trail bowl' })
+  await dialog
+    .getByRole('spinbutton', {
+      name: "Quantity for Justin's Classic Peanut Butter",
+    })
+    .fill('1.5')
+  await dialog
+    .getByRole('group', { name: 'Recipe-only ingredient 1' })
+    .getByLabel('Calories')
+    .fill('50')
+  await dialog.getByRole('button', { name: 'Save Recipe' }).click()
+
+  await navigateTo(page, 'Meal planner')
+  await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
+    '548 kcal',
+  )
+  await navigateTo(page, 'Shopping list')
+  await expect(
+    page.getByRole('button', {
+      name: /Justin's Classic Peanut Butter.*2.3.*servings/,
+    }),
+  ).toBeVisible()
+  await expect(
+    page.getByRole('button', {
+      name: /Cocoa powder.*From Trail bowl.*15 g.*75 kcal/,
+    }),
+  ).toBeVisible()
+})
 
 test('reset cancel/confirm, previous-state restore, and final-day invariant', async ({
   page,
@@ -598,7 +647,7 @@ test('keyboard-only primary planning and navigation journey', async ({
   await launchWithState(page, emptyState())
   await tabUntil(
     page,
-    (active) => active.label.startsWith('Add food to breakfast'),
+    (active) => active.label.startsWith('Add Food or Recipe to breakfast'),
   )
   await page.keyboard.type("Justin's Classic Peanut Butter")
   await tabUntil(page, (active) => active.role === 'option')

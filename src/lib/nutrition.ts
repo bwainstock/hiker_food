@@ -1,4 +1,7 @@
-import type { Food, Nutrition, PlanItem } from '../types'
+import type { Food, Nutrition, PlanItem, Recipe } from '../types'
+import { resolvePlanItem } from './recipe'
+
+export { resolvePlanItem } from './recipe'
 
 export const EMPTY_NUTRITION: Nutrition = {
   calories: 0,
@@ -53,13 +56,13 @@ export function addNutrition(...values: Nutrition[]): Nutrition {
 
 export function nutritionForItems(
   items: PlanItem[],
-  foodsById: Map<string, Food>,
+  foodsById: ReadonlyMap<string, Food>,
+  recipesById: ReadonlyMap<string, Recipe> = new Map(),
 ): Nutrition {
   return addNutrition(
     ...items.flatMap((item) => {
-      if (item.target.kind !== 'food') return []
-      const food = foodsById.get(item.target.id)
-      return food ? [nutritionForFood(food, item.quantity)] : []
+      const resolved = resolvePlanItem(item, foodsById, recipesById)
+      return resolved ? [resolved.nutrition] : []
     }),
   )
 }

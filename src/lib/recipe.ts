@@ -2,6 +2,7 @@ import type {
   Food,
   FoodRecipeIngredient,
   Nutrition,
+  PlanItem,
   PlannerState,
   Recipe,
   RecipeCategory,
@@ -19,6 +20,17 @@ import { recipeIngredientSchema } from './schemas'
 
 export interface ResolvedFoodRecipe {
   ingredientCount: number
+  complete: boolean
+  nutrition: Nutrition
+  unavailableFoodIds: string[]
+  foodContributions: FoodRecipeIngredient[]
+  recipeOnlyContributions: RecipeOnlyIngredient[]
+}
+
+export interface ResolvedPlanItem {
+  kind: PlanItem['target']['kind']
+  id: string
+  label: string
   complete: boolean
   nutrition: Nutrition
 }
@@ -247,10 +259,19 @@ export function resolveFoodRecipe(
       : [],
   )
   const resolved = [...resolvedFoods, ...recipeOnlyNutrition]
+  const unavailableFoodIds = foodIngredients
+    .filter((ingredient) => !foodsById.has(ingredient.foodId))
+    .map((ingredient) => ingredient.foodId)
 
   return {
     ingredientCount: recipe.ingredients.length,
-    complete: resolvedFoods.length === foodIngredients.length,
+    complete: unavailableFoodIds.length === 0,
+    unavailableFoodIds,
+    foodContributions: foodIngredients,
+    recipeOnlyContributions: recipe.ingredients.filter(
+      (ingredient): ingredient is RecipeOnlyIngredient =>
+        ingredient.kind === 'recipe-only',
+    ),
     nutrition:
       resolved.length === 0
         ? { ...EMPTY_NUTRITION }
@@ -258,7 +279,51 @@ export function resolveFoodRecipe(
   }
 }
 
-function nutritionForRecipeOnlyIngredient(
+export function resolvePlanItem(
+  item: PlanItem,
+  foodsById: ReadonlyMap<string, Food>,
+  recipesById: ReadonlyMap<string, Recipe>,
+): ResolvedPlanItem | null {
+  if (item.target.kind === 'food') {
+    const food = foodsById.get(item.target.id)
+    return food
+      ? {
+          kind: 'food',
+          id: food.id,
+          label: food.name,
+          complete: true,
+          nutrition: nutritionForFood(food, item.quantity),
+        }
+      : null
+  }
+
+  const recipe = recipesById.get(item.target.id)
+  if (!recipe) return null
+  const resolved = resolveFoodRecipe(recipe, foodsById)
+  return {
+    kind: 'recipe',
+    id: recipe.id,
+    label: recipe.name,
+    complete: resolved.complete,
+    nutrition: scaleNutrition(resolved.nutrition, item.quantity),
+  }
+}
+
+export function scaleNutrition(
+  nutrition: Nutrition,
+  quantity: number,
+): Nutrition {
+  const safeQuantity =
+    Number.isFinite(quantity) && quantity > 0 ? quantity : 0
+  return Object.fromEntries(
+    Object.entries(nutrition).map(([key, value]) => [
+      key,
+      value * safeQuantity,
+    ]),
+  ) as unknown as Nutrition
+}
+
+export function nutritionForRecipeOnlyIngredient(
   ingredient: RecipeOnlyIngredient,
 ): Nutrition {
   return {

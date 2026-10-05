@@ -1,4 +1,9 @@
-import type { Food, PlannerState, PortableBackupV2 } from '../types'
+import type {
+  Food,
+  PlannerState,
+  PortableBackupV2,
+  Recipe,
+} from '../types'
 import { MEALS } from '../types'
 import {
   legacyPlannerStateSchema,
@@ -6,6 +11,7 @@ import {
   portableBackupV1Schema,
   portableBackupV2Schema,
 } from './schemas'
+import { resolveFoodRecipe } from './recipe'
 
 export const PLANNER_STORAGE_KEY = 'trail-rations-plan-v1'
 export const PREVIOUS_STATE_STORAGE_KEY =
@@ -176,20 +182,25 @@ export interface UnresolvedPlanItem {
   dayName: string
   meal: (typeof MEALS)[number]
   itemId: string
-  foodId: string
   quantity: number
+  foodId?: string
+  recipeId?: string
 }
 
 export function findUnresolvedPlanItems(
   state: PlannerState,
   foodsById: ReadonlyMap<string, Food>,
+  recipesById: ReadonlyMap<string, Recipe> = new Map(
+    state.recipes.map((recipe) => [recipe.id, recipe]),
+  ),
 ) {
   return state.days.flatMap((day) =>
     MEALS.flatMap((meal) =>
       day.meals[meal].flatMap((item): UnresolvedPlanItem[] =>
-        item.target.kind !== 'food' || foodsById.has(item.target.id)
-          ? []
-          : [
+        item.target.kind === 'food'
+          ? foodsById.has(item.target.id)
+            ? []
+            : [
               {
                 dayId: day.id,
                 dayName: day.name,
@@ -198,7 +209,22 @@ export function findUnresolvedPlanItems(
                 foodId: item.target.id,
                 quantity: item.quantity,
               },
-            ],
+            ]
+          : (() => {
+              const recipe = recipesById.get(item.target.id)
+              return recipe && resolveFoodRecipe(recipe, foodsById).complete
+                ? []
+                : [
+                    {
+                      dayId: day.id,
+                      dayName: day.name,
+                      meal,
+                      itemId: item.id,
+                      recipeId: item.target.id,
+                      quantity: item.quantity,
+                    },
+                  ]
+            })(),
       ),
     ),
   )

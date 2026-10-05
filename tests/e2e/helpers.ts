@@ -6,7 +6,12 @@ import {
   PLANNER_STORAGE_KEY,
   PREVIOUS_STATE_STORAGE_KEY,
 } from '../../src/lib/state'
-import type { DayPlan, Food, PlannerState } from '../../src/types'
+import type {
+  DayPlan,
+  Food,
+  PlannerState,
+  Recipe,
+} from '../../src/types'
 
 const INIT_MARKER = 'trail-rations-e2e-initialized'
 
@@ -22,6 +27,48 @@ export function emptyState(
   customFoods: Food[] = [],
 ): PlannerState {
   return { days: [day], customFoods, recipes: [] }
+}
+
+export function stateWithRecipe({
+  placed = false,
+}: { placed?: boolean } = {}): PlannerState {
+  const recipe: Recipe = {
+    id: 'recipe-trail-bowl',
+    name: 'Trail bowl',
+    category: 'Dinner',
+    instructions: 'Stir together',
+    ingredients: [
+      {
+        kind: 'food',
+        foodId: 'justin-s-classic-peanut-butter-19',
+        quantity: 1,
+      },
+      {
+        kind: 'recipe-only',
+        id: 'cocoa',
+        name: 'Cocoa powder',
+        weightGrams: 10,
+        calories: 40,
+        fat: 1,
+        carbs: 5,
+        protein: 2,
+        fiber: 1,
+        sugar: 0,
+        sodium: 0,
+        potassium: 0,
+      },
+    ],
+  }
+  const state = emptyState()
+  state.recipes = [recipe]
+  if (placed) {
+    state.days[0].meals.Dinner.push({
+      id: 'recipe-placement',
+      target: { kind: 'recipe', id: recipe.id },
+      quantity: 2,
+    })
+  }
+  return state
 }
 
 export async function launchWithState(page: Page, state: PlannerState) {
