@@ -1985,7 +1985,7 @@
 
 .recipe-card-header p {
   margin-top: 5px;
-  color: #7e8983;
+  color: #59665f;
   font-size: 10px;
 }
 
@@ -1996,6 +1996,15 @@
   color: #765126;
   font-size: 9px;
   background: #fbf2e2;
+}
+
+.recipe-warning strong,
+.recipe-warning span {
+  display: block;
+}
+
+.recipe-warning span {
+  margin-top: 3px;
 }
 
 .recipe-instructions {
@@ -2020,7 +2029,7 @@
 }
 
 .recipe-metrics dt {
-  color: #8b9690;
+  color: #59665f;
   font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.45px;
@@ -2143,7 +2152,7 @@
 
 .recipe-ingredient span,
 .recipe-ingredient label > span:first-child {
-  color: #8b9690;
+  color: #59665f;
   font-size: 8px;
 }
 

@@ -5,7 +5,10 @@ import {
   createRecipeDraft,
   filterRecipes,
   formatRecipeCalories,
+  getRecipePlacementEligibility,
+  removeFoodIngredient,
   removeRecipeOnlyIngredient,
+  replaceFoodIngredient,
   resolveFoodRecipe,
   saveRecipeDraft,
   updateRecipeOnlyIngredient,
@@ -81,6 +84,90 @@ describe('Food-based Recipe resolution', () => {
 
     foodsById.set('food-1', makeFood({ calories: 120 }))
     expect(resolveFoodRecipe(recipe, foodsById).nutrition.calories).toBe(621.4)
+  })
+
+  it('returns known totals and unavailable-reference details for an incomplete Recipe', () => {
+    const recipe: Recipe = {
+      id: 'recipe-incomplete',
+      name: 'Partial bowl',
+      category: 'Dinner',
+      instructions: null,
+      ingredients: [
+        { kind: 'food', foodId: 'food-1', quantity: 1.5 },
+        { kind: 'food', foodId: 'retired-food', quantity: 2.5 },
+      ],
+    }
+
+    expect(
+      resolveFoodRecipe(recipe, new Map([['food-1', makeFood()]])),
+    ).toMatchObject({
+      complete: false,
+      nutrition: { calories: 150, sodium: 300 },
+      unavailableFoodReferences: [
+        { foodId: 'retired-food', quantity: 2.5 },
+      ],
+    })
+    expect(
+      getRecipePlacementEligibility(
+        recipe,
+        new Map([['food-1', makeFood()]]),
+      ),
+    ).toEqual({
+      eligible: false,
+      reason: 'Repair 1 unavailable Food ingredient in Recipes before adding.',
+    })
+  })
+
+  it('replaces an unavailable Food while retaining quantity and restores completeness', () => {
+    const recipe: Recipe = {
+      id: 'recipe-incomplete',
+      name: 'Partial bowl',
+      category: null,
+      instructions: null,
+      ingredients: [
+        { kind: 'food', foodId: 'retired-food', quantity: 2.5 },
+      ],
+    }
+    const draft = replaceFoodIngredient(
+      createRecipeDraft(recipe),
+      'retired-food',
+      'food-1',
+    )
+
+    expect(draft.ingredients).toEqual([
+      { kind: 'food', foodId: 'food-1', quantity: 2.5 },
+    ])
+    expect(
+      resolveFoodRecipe(
+        { ...recipe, ingredients: draft.ingredients },
+        new Map([['food-1', makeFood()]]),
+      ).complete,
+    ).toBe(true)
+  })
+
+  it('removes an unavailable Food only into a nonempty valid repair', () => {
+    const recipe: Recipe = {
+      id: 'recipe-incomplete',
+      name: 'Partial bowl',
+      category: null,
+      instructions: null,
+      ingredients: [
+        { kind: 'food', foodId: 'food-1', quantity: 1 },
+        { kind: 'food', foodId: 'retired-food', quantity: 2.5 },
+      ],
+    }
+
+    const repaired = removeFoodIngredient(
+      createRecipeDraft(recipe),
+      'retired-food',
+    )
+    expect(repaired.ingredients).toEqual([
+      { kind: 'food', foodId: 'food-1', quantity: 1 },
+    ])
+    expect(validateRecipeDraft(repaired).success).toBe(true)
+    expect(
+      validateRecipeDraft(removeFoodIngredient(repaired, 'food-1')).success,
+    ).toBe(false)
   })
 
   it('merges repeated Food selections into one ingredient', () => {

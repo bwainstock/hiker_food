@@ -71,6 +71,23 @@ export function stateWithRecipe({
   return state
 }
 
+export function stateWithIncompleteRecipe(): PlannerState {
+  const state = stateWithRecipe({ placed: true })
+  state.recipes[0] = {
+    ...state.recipes[0],
+    name: 'Incomplete trail bowl',
+    ingredients: [
+      ...state.recipes[0].ingredients,
+      {
+        kind: 'food',
+        foodId: 'retired-recipe-food',
+        quantity: 1.5,
+      },
+    ],
+  }
+  return state
+}
+
 export async function launchWithState(page: Page, state: PlannerState) {
   await page.addInitScript(
     ({ marker, currentKey, previousKey, serialized }) => {

@@ -14,6 +14,7 @@ import {
   formatRecipeCalories,
   removeFoodIngredient,
   removeRecipeOnlyIngredient,
+  replaceFoodIngredient,
   resolveFoodRecipe,
   saveRecipeDraft,
   updateFoodIngredientQuantity,
@@ -296,9 +297,19 @@ function RecipeCard({
         <p className="recipe-instructions">{recipe.instructions}</p>
       )}
       {!summary.complete && (
-        <p className="recipe-warning" role="status">
-          Some Foods are unavailable, so these totals are incomplete.
-        </p>
+        <div className="recipe-warning" role="status">
+          <strong>Known totals only — this Recipe is incomplete.</strong>
+          <span>
+            Repair unavailable Food
+            {summary.unavailableFoodReferences.length === 1 ? '' : 's'}:{' '}
+            {summary.unavailableFoodReferences
+              .map(
+                (ingredient) =>
+                  `${ingredient.foodId} (${round(ingredient.quantity, 1)} servings)`,
+              )
+              .join(', ')}
+          </span>
+        </div>
       )}
       <dl className="recipe-metrics">
         {metrics.map(([label, value]) => (
@@ -331,6 +342,7 @@ function RecipeForm({
 }) {
   const errorId = useId()
   const [errors, setErrors] = useState<RecipeErrors>({ fields: {} })
+  const [replacingFoodId, setReplacingFoodId] = useState<string | null>(null)
 
   const save = () => {
     const result = validateRecipeDraft(draft)
@@ -446,13 +458,13 @@ function RecipeForm({
                 const quantityError =
                   errors.fields[ingredient.foodId]?.quantity
                 return (
-                  <div
-                    className="recipe-ingredient"
-                    key={ingredient.foodId}
-                  >
+                  <div className="recipe-ingredient" key={ingredient.foodId}>
                     <div>
                       <strong>{food?.name ?? 'Unavailable Food'}</strong>
-                      <span>{food?.category ?? ingredient.foodId}</span>
+                      <span>
+                        {food?.category ??
+                          `Food ID: ${ingredient.foodId} · Repair required`}
+                      </span>
                     </div>
                     <label>
                       <span>Servings</span>
@@ -479,18 +491,55 @@ function RecipeForm({
                         </span>
                       )}
                     </label>
-                    <button
-                      className="icon-button danger"
-                      type="button"
-                      onClick={() =>
-                        onDraftChange(
-                          removeFoodIngredient(draft, ingredient.foodId),
-                        )
-                      }
-                      aria-label={`Remove ${food?.name ?? ingredient.foodId}`}
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    <div className="unresolved-actions">
+                      {!food && (
+                        <button
+                          className="button button-quiet item-action"
+                          type="button"
+                          aria-expanded={replacingFoodId === ingredient.foodId}
+                          onClick={() =>
+                            setReplacingFoodId((current) =>
+                              current === ingredient.foodId
+                                ? null
+                                : ingredient.foodId,
+                            )
+                          }
+                          aria-label={`Replace unavailable Food ${ingredient.foodId}`}
+                        >
+                          Replace
+                        </button>
+                      )}
+                      <button
+                        className="icon-button danger"
+                        type="button"
+                        onClick={() =>
+                          onDraftChange(
+                            removeFoodIngredient(draft, ingredient.foodId),
+                          )
+                        }
+                        aria-label={`Remove ${food?.name ?? ingredient.foodId}`}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                    {!food && replacingFoodId === ingredient.foodId && (
+                      <div className="unresolved-replacement">
+                        <FoodPicker
+                          foods={foods}
+                          placeholder={`Choose replacement for ${ingredient.foodId}`}
+                          onSelect={(replacement) => {
+                            onDraftChange(
+                              replaceFoodIngredient(
+                                draft,
+                                ingredient.foodId,
+                                replacement.id,
+                              ),
+                            )
+                            setReplacingFoodId(null)
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 )
               })}

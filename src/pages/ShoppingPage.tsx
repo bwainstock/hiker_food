@@ -226,8 +226,11 @@ export function ShoppingPage({
                   <strong>Unavailable food</strong>
                   <small>
                     Food ID: {row.foodId} · {row.itemCount} Plan item
-                    {row.itemCount === 1 ? '' : 's'} ·{' '}
+                    {row.itemCount === 1 ? '' : 's'}
+                    {' · '}
                     {row.locations.join(', ')}
+                    {row.recipeSources.length > 0 &&
+                      ` · ${row.recipeSources.join(', ')} · From Recipe: ${row.recipeSources.join(', ')}`}
                   </small>
                 </span>
                 <span className="shopping-quantity">

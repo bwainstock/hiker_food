@@ -14,8 +14,77 @@ import {
   readDownload,
   selectImportFile,
   stateWithRecipe,
+  stateWithIncompleteRecipe,
   tabUntil,
 } from './helpers'
+
+test('incomplete Recipe stays placed, blocks new placement, and is repaired by keyboard', async ({
+  page,
+}) => {
+  await launchWithState(page, stateWithIncompleteRecipe())
+
+  await expect(page.getByText('Nutrition totals are incomplete.')).toBeVisible()
+  await expect(page.getByText('Plan totals incomplete')).toBeVisible()
+  const dinner = page.getByRole('article', { name: 'Dinner' })
+  await expect(dinner).toContainText('Meal totals incomplete')
+  await expect(dinner).toContainText('Incomplete trail bowl')
+  await expect(dinner.getByLabel('Quantity for Incomplete trail bowl')).toHaveValue('2')
+
+  const picker = dinner.getByRole('combobox')
+  await picker.fill('Incomplete trail bowl')
+  const option = dinner.getByRole('option', { name: /Incomplete trail bowl/ })
+  await expect(option).toBeDisabled()
+  await expect(option).toContainText(
+    'Repair 1 unavailable Food ingredient in Recipes before adding.',
+  )
+
+  await navigateTo(page, 'Shopping list')
+  await expect(
+    page.getByText('Shopping and nutrition totals are incomplete.'),
+  ).toBeVisible()
+  const unavailable = page.getByText('retired-recipe-food').locator('..')
+  await expect(page.getByText('3', { exact: true })).toBeVisible()
+  await expect(unavailable).toContainText('From Recipe: Incomplete trail bowl')
+  await expect(unavailable).toContainText('Day 1 · Dinner')
+
+  await navigateTo(page, 'Recipes')
+  const recipe = page.getByRole('article', { name: 'Incomplete trail bowl' })
+  await expect(recipe).toContainText('Known totals only')
+  await expect(recipe).toContainText('retired-recipe-food')
+  await page.getByRole('button', { name: 'Edit Incomplete trail bowl' }).click()
+  const dialog = page.getByRole('dialog', {
+    name: 'Edit Incomplete trail bowl',
+  })
+  await expect(dialog).toContainText('Unavailable Food')
+  await expect(dialog.getByLabel('Quantity for retired-recipe-food')).toHaveValue(
+    '1.5',
+  )
+  const replace = dialog.getByRole('button', {
+    name: 'Replace unavailable Food retired-recipe-food',
+  })
+  await replace.focus()
+  await page.keyboard.press('Enter')
+  const replacement = dialog.getByRole('combobox', {
+    name: 'Choose replacement for retired-recipe-food',
+  })
+  await replacement.fill("Justin's Classic Peanut Butter")
+  await dialog
+    .getByRole('option', { name: /Justin's Classic Peanut Butter/ })
+    .focus()
+  await page.keyboard.press('Enter')
+  await expect(
+    dialog.getByLabel("Quantity for Justin's Classic Peanut Butter"),
+  ).toHaveValue('2.5')
+  await dialog.getByRole('button', { name: 'Save Recipe' }).click()
+
+  await navigateTo(page, 'Meal planner')
+  await expect(page.getByText('Nutrition totals are incomplete.')).toHaveCount(0)
+  await navigateTo(page, 'Shopping list')
+  await expect(page.getByText('retired-recipe-food')).toHaveCount(0)
+  await expect(
+    page.getByText('Shopping and nutrition totals are incomplete.'),
+  ).toHaveCount(0)
+})
 
 test('Recipe quantity and saved edits update every projection', async ({
   page,
@@ -212,8 +281,9 @@ test('custom Food deletion separates direct and Recipe impact', async ({
   await navigateTo(page, 'Recipes')
   const recipe = page.getByRole('article', { name: 'Shared Food Recipe' })
   await expect(recipe).toContainText(
-    'Some Foods are unavailable, so these totals are incomplete.',
+    'Known totals only — this Recipe is incomplete.',
   )
+  await expect(recipe).toContainText('custom-delete-shared (1.5 servings)')
   await page.getByRole('button', { name: 'Edit Shared Food Recipe' }).click()
   await expect(
     page.getByRole('dialog', { name: 'Edit Shared Food Recipe' }),
