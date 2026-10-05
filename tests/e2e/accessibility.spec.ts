@@ -8,6 +8,7 @@ import {
   launchWithState,
   navigateTo,
   selectImportFile,
+  stateWithIncompleteRecipe,
 } from './helpers'
 
 test('axe scan on every screen', async ({ page }) => {
@@ -38,6 +39,19 @@ test('axe scan on Recipe editor and validation errors', async ({ page }) => {
     .getByRole('button', { name: 'Add Recipe-only ingredient' })
     .click()
   await page.getByRole('button', { name: 'Save Recipe' }).click()
+  await expectNoAxeViolations(page)
+})
+
+test('axe scan on incomplete Recipe surfaces and repair editor', async ({
+  page,
+}) => {
+  await launchWithState(page, stateWithIncompleteRecipe())
+  await expectNoAxeViolations(page)
+  await navigateTo(page, 'Shopping list')
+  await expectNoAxeViolations(page)
+  await navigateTo(page, 'Recipes')
+  await expectNoAxeViolations(page)
+  await page.getByRole('button', { name: 'Edit Incomplete trail bowl' }).click()
   await expectNoAxeViolations(page)
 })
 

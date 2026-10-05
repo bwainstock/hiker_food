@@ -23,6 +23,7 @@ export interface ResolvedFoodRecipe {
   complete: boolean
   nutrition: Nutrition
   unavailableFoodIds: string[]
+  unavailableFoodReferences: FoodRecipeIngredient[]
   foodContributions: FoodRecipeIngredient[]
   recipeOnlyContributions: RecipeOnlyIngredient[]
 }
@@ -124,6 +125,42 @@ export function removeFoodIngredient(
       (ingredient) =>
         ingredient.kind !== 'food' || ingredient.foodId !== foodId,
     ),
+  }
+}
+
+export function replaceFoodIngredient(
+  draft: RecipeDraft,
+  oldFoodId: string,
+  newFoodId: string,
+): RecipeDraft {
+  if (oldFoodId === newFoodId) return draft
+  const replaced = draft.ingredients.find(
+    (ingredient): ingredient is FoodRecipeIngredient =>
+      ingredient.kind === 'food' && ingredient.foodId === oldFoodId,
+  )
+  if (!replaced) return draft
+  const existing = draft.ingredients.find(
+    (ingredient): ingredient is FoodRecipeIngredient =>
+      ingredient.kind === 'food' && ingredient.foodId === newFoodId,
+  )
+
+  return {
+    ...draft,
+    ingredients: draft.ingredients.flatMap<RecipeIngredient>((ingredient) => {
+      if (ingredient.kind !== 'food') return [ingredient]
+      if (ingredient.foodId === oldFoodId) {
+        return existing ? [] : [{ ...ingredient, foodId: newFoodId }]
+      }
+      if (ingredient.foodId === newFoodId && existing) {
+        return [
+          {
+            ...ingredient,
+            quantity: ingredient.quantity + replaced.quantity,
+          },
+        ]
+      }
+      return [ingredient]
+    }),
   }
 }
 
@@ -262,11 +299,15 @@ export function resolveFoodRecipe(
   const unavailableFoodIds = foodIngredients
     .filter((ingredient) => !foodsById.has(ingredient.foodId))
     .map((ingredient) => ingredient.foodId)
+  const unavailableFoodReferences = foodIngredients.filter(
+    (ingredient) => !foodsById.has(ingredient.foodId),
+  )
 
   return {
     ingredientCount: recipe.ingredients.length,
     complete: unavailableFoodIds.length === 0,
     unavailableFoodIds,
+    unavailableFoodReferences,
     foodContributions: foodIngredients,
     recipeOnlyContributions: recipe.ingredients.filter(
       (ingredient): ingredient is RecipeOnlyIngredient =>
@@ -277,6 +318,22 @@ export function resolveFoodRecipe(
         ? { ...EMPTY_NUTRITION }
         : addNutrition(...resolved),
   }
+}
+
+export function getRecipePlacementEligibility(
+  recipe: Recipe,
+  foodsById: ReadonlyMap<string, Food>,
+) {
+  const unavailableCount =
+    resolveFoodRecipe(recipe, foodsById).unavailableFoodReferences.length
+  return unavailableCount === 0
+    ? { eligible: true, reason: null }
+    : {
+        eligible: false,
+        reason: `Repair ${unavailableCount} unavailable Food ingredient${
+          unavailableCount === 1 ? '' : 's'
+        } in Recipes before adding.`,
+      }
 }
 
 export function resolvePlanItem(

@@ -18,6 +18,7 @@ export interface UnresolvedShoppingRow {
   quantity: number
   itemCount: number
   locations: string[]
+  recipeSources: string[]
 }
 
 export interface RecipeOnlyShoppingRow {
@@ -38,7 +39,12 @@ export function aggregateShoppingList(
 ) {
   const quantities = new Map<
     string,
-    { quantity: number; itemCount: number; locations: string[] }
+    {
+      quantity: number
+      itemCount: number
+      locations: string[]
+      recipeSources: string[]
+    }
   >()
   const recipeOnly = new Map<
     string,
@@ -50,15 +56,23 @@ export function aggregateShoppingList(
     foodId: string,
     quantity: number,
     location: string,
+    recipeSource?: string,
   ) => {
     const current = quantities.get(foodId) ?? {
       quantity: 0,
       itemCount: 0,
       locations: [],
+      recipeSources: [],
     }
     current.quantity += quantity
     current.itemCount += 1
-    current.locations.push(location)
+    if (!current.locations.includes(location)) current.locations.push(location)
+    if (
+      recipeSource &&
+      !current.recipeSources.includes(recipeSource)
+    ) {
+      current.recipeSources.push(recipeSource)
+    }
     quantities.set(foodId, current)
   }
 
@@ -77,7 +91,8 @@ export function aggregateShoppingList(
           addFoodContribution(
             ingredient.foodId,
             ingredient.quantity * item.quantity,
-            `${location} · ${recipe.name}`,
+            location,
+            recipe.name,
           ),
         )
         resolved.recipeOnlyContributions.forEach((ingredient) => {
@@ -134,5 +149,10 @@ export function aggregateShoppingList(
         EN_US_COLLATOR.compare(a.ingredientId, b.ingredientId),
     )
 
-  return { rows, recipeOnlyRows, unresolved }
+  return {
+    complete: unresolved.length === 0,
+    rows,
+    recipeOnlyRows,
+    unresolved,
+  }
 }

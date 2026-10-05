@@ -3,6 +3,7 @@ import { useId, useMemo, useRef, useState } from 'react'
 import { searchFoods } from '../lib/catalog'
 import {
   filterRecipes,
+  getRecipePlacementEligibility,
   resolveFoodRecipe,
 } from '../lib/recipe'
 import { round } from '../lib/nutrition'
@@ -58,13 +59,17 @@ export function PlanTargetPicker({
         <div className="food-results" id={resultsId} role="listbox">
           {recipeResults.map((recipe) => {
             const resolved = resolveFoodRecipe(recipe, foodsById)
+            const eligibility = getRecipePlacementEligibility(
+              recipe,
+              foodsById,
+            )
             return (
               <button
                 type="button"
                 role="option"
                 aria-selected="false"
-                aria-disabled={!resolved.complete}
-                disabled={!resolved.complete}
+                aria-disabled={!eligibility.eligible}
+                disabled={!eligibility.eligible}
                 key={`recipe:${recipe.id}`}
                 onClick={() => {
                   onSelect({ kind: 'recipe', id: recipe.id })
@@ -77,16 +82,16 @@ export function PlanTargetPicker({
                   <strong>{recipe.name}</strong>
                   <small>
                     Recipe · {recipe.category ?? 'Uncategorized'}
-                    {!resolved.complete && ' · Unavailable Food ingredient'}
+                    {!eligibility.eligible && ` · ${eligibility.reason}`}
                   </small>
                 </span>
                 <span className="result-metric">
                   <strong>{round(resolved.nutrition.calories)}</strong>
-                  <small>kcal</small>
+                  <small>{resolved.complete ? 'kcal' : 'known kcal'}</small>
                 </span>
                 <span className="result-metric">
                   <strong>{round(resolved.nutrition.weightOz, 1)}</strong>
-                  <small>oz</small>
+                  <small>{resolved.complete ? 'oz' : 'known oz'}</small>
                 </span>
               </button>
             )

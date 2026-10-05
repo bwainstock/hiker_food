@@ -172,6 +172,37 @@ describe('Shopping-list aggregation', () => {
         ['Sweet bowl', 4, 4],
       ])
   })
+
+  it('retains unavailable Recipe Food quantity, source, and Plan locations', () => {
+    const recipe = makeRecipe({
+      id: 'recipe-incomplete',
+      name: 'Partial bowl',
+      ingredients: [
+        { kind: 'food', foodId: 'retired-food', quantity: 1.5 },
+      ],
+    })
+    const day = makeDay()
+    day.meals.Dinner.push({
+      id: 'recipe-placement',
+      target: { kind: 'recipe', id: recipe.id },
+      quantity: 2,
+    })
+    const state = makeState(day)
+    state.recipes = [recipe]
+
+    const result = aggregateShoppingList(state, new Map())
+
+    expect(result.complete).toBe(false)
+    expect(result.unresolved).toEqual([
+      {
+        foodId: 'retired-food',
+        quantity: 3,
+        itemCount: 1,
+        locations: ['Day 1 · Dinner'],
+        recipeSources: ['Partial bowl'],
+      },
+    ])
+  })
 })
 
 describe('catalog contracts', () => {

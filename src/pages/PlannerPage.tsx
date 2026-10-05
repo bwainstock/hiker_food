@@ -77,6 +77,9 @@ export function PlannerPage({
     () => findUnresolvedPlanItems(state, foodsById, recipesById),
     [state, foodsById, recipesById],
   )
+  const activeDayUnresolved = activeDay
+    ? unresolvedItems.filter((item) => item.dayId === activeDay.id)
+    : []
 
   const dayNutrition = useMemo(() => {
     if (!activeDay) return addNutrition()
@@ -173,6 +176,7 @@ export function PlannerPage({
         <div>
           <span>Total energy</span>
           <strong>{round(tripNutrition.calories).toLocaleString()} kcal</strong>
+          {unresolvedItems.length > 0 && <small>Plan totals incomplete</small>}
         </div>
         <div>
           <span>Food weight</span>
@@ -275,11 +279,20 @@ export function PlannerPage({
           accent="#9d6a35"
         />
       </section>
+      {activeDayUnresolved.length > 0 && (
+        <p className="recipe-warning" role="status">
+          Trail-day totals incomplete — showing nutrition from available Foods
+          and Recipe ingredients only.
+        </p>
+      )}
 
       <div className="planner-grid">
         <section className="meal-list">
           {MEALS.map((meal) => {
             const mealItems = activeDay.meals[meal]
+            const mealIncomplete = activeDayUnresolved.some(
+              (item) => item.meal === meal,
+            )
             const nutrition = nutritionForItems(
               mealItems,
               foodsById,
@@ -313,7 +326,10 @@ export function PlannerPage({
                   </div>
                   <div className="meal-summary">
                     <strong>{round(nutrition.calories)} kcal</strong>
-                    <span>{round(nutrition.weightOz, 1)} oz</span>
+                    <span>
+                      {round(nutrition.weightOz, 1)} oz
+                      {mealIncomplete && ' · Meal totals incomplete'}
+                    </span>
                   </div>
                   <ChevronDown
                     className={isExpanded ? 'rotated' : ''}
