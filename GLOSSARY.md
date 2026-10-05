@@ -33,12 +33,14 @@ _Avoid_: Manual item, personal food
 
 **Recipe**:
 A Plan-owned, one-serving composition of Food ingredients and Recipe-only
-ingredients. Its stable ID defines its identity independently of its name.
+ingredients. Its stable ID defines its identity independently of its name;
+create and edit drafts do not change the Plan until Save.
 _Avoid_: Custom Food, meal
 
 **Food ingredient**:
 A live reference from a Recipe to a Food by stable Food ID, with a quantity
-expressed in Food servings.
+expressed in Food servings. Repeated selection of one Food increases the
+existing Food ingredient quantity rather than creating another reference.
 _Avoid_: Recipe Food, copied Food
 
 **Recipe-only ingredient**:

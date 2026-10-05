@@ -17,6 +17,7 @@ test('axe scan on every screen', async ({ page }) => {
   for (const screen of [
     'Shopping list',
     'Food library',
+    'Recipes',
     'Electrolytes',
     'Na/K calculator',
     'Trail guide',
@@ -24,6 +25,15 @@ test('axe scan on every screen', async ({ page }) => {
     await navigateTo(page, screen)
     await expectNoAxeViolations(page)
   }
+})
+
+test('axe scan on Recipe editor and validation errors', async ({ page }) => {
+  await launchWithState(page, emptyState())
+  await navigateTo(page, 'Recipes')
+  await page.getByRole('button', { name: 'Create Recipe' }).click()
+  await expectNoAxeViolations(page)
+  await page.getByRole('button', { name: 'Save Recipe' }).click()
+  await expectNoAxeViolations(page)
 })
 
 test('axe scan on data-management modal surfaces', async ({ page }) => {
