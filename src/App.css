@@ -2539,6 +2539,26 @@
 }
 
 @media (max-width: 620px) {
+  :is(.app-shell, .modal) input:not([type]),
+  :is(.app-shell, .modal) input:is(
+    [type='date'],
+    [type='datetime-local'],
+    [type='email'],
+    [type='month'],
+    [type='number'],
+    [type='password'],
+    [type='search'],
+    [type='tel'],
+    [type='text'],
+    [type='time'],
+    [type='url'],
+    [type='week']
+  ),
+  :is(.app-shell, .modal) select,
+  :is(.app-shell, .modal) textarea {
+    font-size: 16px;
+  }
+
   .page-content {
     padding: 20px 14px 45px;
   }
