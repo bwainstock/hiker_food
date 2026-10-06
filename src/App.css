@@ -1231,6 +1231,10 @@
   overflow-x: auto;
 }
 
+.food-card-list {
+  display: none;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
@@ -2640,6 +2644,133 @@
 
   .results-summary span:last-child {
     display: none;
+  }
+
+  .food-table-wrap {
+    display: none;
+  }
+
+  .food-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .food-card {
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: var(--paper);
+    box-shadow: 0 1px 2px rgb(26 44 35 / 3%);
+  }
+
+  .food-card-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .food-card-heading .food-cell {
+    min-width: 0;
+  }
+
+  .food-card-heading .food-cell strong {
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .food-card-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px 8px;
+    margin: 14px 0 0;
+  }
+
+  .food-card-metrics div {
+    min-width: 0;
+  }
+
+  .food-card-metrics dt {
+    color: #87918c;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.45px;
+    text-transform: uppercase;
+  }
+
+  .food-card-metrics dd {
+    margin: 4px 0 0;
+    color: #425149;
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .food-card-metrics dd small {
+    display: block;
+    margin-top: 2px;
+    color: #929b96;
+    font-size: 8px;
+    font-weight: 500;
+  }
+
+  .food-card-metrics .badge {
+    max-width: 100%;
+    white-space: normal;
+  }
+
+  .food-card-disclosure {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 13px;
+    padding: 10px 0 0;
+    border: 0;
+    border-top: 1px solid #edf0ed;
+    color: var(--green);
+    font-size: 10px;
+    font-weight: 700;
+    background: transparent;
+  }
+
+  .food-card-disclosure svg {
+    transition: 180ms ease;
+  }
+
+  .food-card-disclosure svg.rotated {
+    transform: rotate(180deg);
+  }
+
+  .food-card-details {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: #f8f9f5;
+  }
+
+  .food-card-details > div {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .food-card-details span {
+    color: #87918c;
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.45px;
+    text-transform: uppercase;
+  }
+
+  .food-card-details strong {
+    margin-top: 3px;
+    color: #425149;
+    font-size: 11px;
   }
 
   .electrolyte-grid,

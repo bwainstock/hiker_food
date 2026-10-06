@@ -1,12 +1,13 @@
 import {
   ArrowDownUp,
+  ChevronDown,
   Plus,
   Search,
   SlidersHorizontal,
   Sparkles,
   Trash2,
 } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Badge, Modal } from '../components/Ui'
 import { FOOD_CATEGORIES } from '../data'
 import { filterAndSortFoods } from '../lib/catalog'
@@ -40,6 +41,7 @@ export function FoodLibraryPage({
   const [sort, setSort] = useState<FoodSortKey>('density')
   const [showForm, setShowForm] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<Food | null>(null)
+  const isMobile = useMediaQuery('(max-width: 620px)')
 
   const filtered = useMemo(
     () => filterAndSortFoods(foods, { query, category, sort }),
@@ -49,6 +51,18 @@ export function FoodLibraryPage({
   const pendingImpact = pendingDelete
     ? analyzeCustomFoodDeletion(state, pendingDelete.id)
     : null
+
+  const requestCustomFoodDeletion = (food: Food) => {
+    const impact = analyzeCustomFoodDeletion(state, food.id)
+    if (
+      impact.planItemCount === 0 &&
+      impact.foodIngredientCount === 0
+    ) {
+      setState((current) => deleteCustomFood(current, food.id))
+    } else {
+      setPendingDelete(food)
+    }
+  }
 
   return (
     <div className="library-page">
@@ -106,98 +120,102 @@ export function FoodLibraryPage({
         <span>Source: Hiker Food workbook + your custom entries</span>
       </div>
 
-      <section className="food-table-wrap">
-        <table className="data-table food-table">
-          <thead>
-            <tr>
-              <th>Food</th>
-              <th>Prep</th>
-              <th>Serving</th>
-              <th>Calories</th>
-              <th>kcal / oz</th>
-              <th>Fat</th>
-              <th>Carbs</th>
-              <th>Protein</th>
-              <th>Sodium</th>
-              <th>
-                <span className="visually-hidden">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.slice(0, 300).map((food) => {
-              const density = densityLabel(food.caloriesPerOz ?? 0)
-              return (
-                <tr key={food.id}>
-                  <td>
-                    <div className="food-cell">
-                      <strong>
-                        {food.custom && <Sparkles size={13} />}
-                        {food.name}
-                      </strong>
-                      <span>{food.category ?? 'Uncategorized'}</span>
-                    </div>
-                  </td>
-                  <td>
-                    {food.prep && food.prep !== 'N/A' ? (
-                      <Badge tone={food.prep === 'hot' ? 'rose' : 'blue'}>
-                        {food.prep}
+      {!isMobile && (
+        <section className="food-table-wrap">
+          <table className="data-table food-table">
+            <thead>
+              <tr>
+                <th>Food</th>
+                <th>Prep</th>
+                <th>Serving</th>
+                <th>Calories</th>
+                <th>kcal / oz</th>
+                <th>Fat</th>
+                <th>Carbs</th>
+                <th>Protein</th>
+                <th>Sodium</th>
+                <th>
+                  <span className="visually-hidden">Actions</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.slice(0, 300).map((food) => {
+                const display = foodDisplay(food)
+                return (
+                  <tr key={food.id}>
+                    <td>
+                      <div className="food-cell">
+                        <strong>
+                          {food.custom && <Sparkles size={13} />}
+                          {food.name}
+                        </strong>
+                        <span>{display.category}</span>
+                      </div>
+                    </td>
+                    <td>
+                      {display.prep !== 'None' ? (
+                        <Badge tone={display.prepTone}>
+                          {display.prep}
+                        </Badge>
+                      ) : (
+                        <span className="muted">None</span>
+                      )}
+                    </td>
+                    <td>
+                      {display.servingGrams}
+                      <small>{display.servingOz}</small>
+                    </td>
+                    <td>{display.calories}</td>
+                    <td>
+                      <Badge tone={display.densityTone}>
+                        {display.caloriesPerOz}
                       </Badge>
-                    ) : (
-                      <span className="muted">None</span>
-                    )}
-                  </td>
-                  <td>
-                    {round(food.servingGrams ?? 0, 1)} g
-                    <small>{round(food.servingOz ?? 0, 2)} oz</small>
-                  </td>
-                  <td>{round(food.calories ?? 0)}</td>
-                  <td>
-                    <Badge tone={density.tone}>
-                      {round(food.caloriesPerOz ?? 0)}
-                    </Badge>
-                  </td>
-                  <td>{round(food.fat ?? 0, 1)} g</td>
-                  <td>{round(food.carbs ?? 0, 1)} g</td>
-                  <td>{round(food.protein ?? 0, 1)} g</td>
-                  <td>{round(food.sodium ?? 0)} mg</td>
-                  <td>
-                    {food.custom && (
-                      <button
-                        className="icon-button danger"
-                        type="button"
-                        aria-label={`Delete ${food.name}`}
-                        onClick={() => {
-                          const impact = analyzeCustomFoodDeletion(
-                            state,
-                            food.id,
-                          )
-                          if (
-                            impact.planItemCount === 0 &&
-                            impact.foodIngredientCount === 0
-                          ) {
-                            setState((current) =>
-                              deleteCustomFood(current, food.id),
-                            )
-                          }
-                          else setPendingDelete(food)
-                        }}
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-        {filtered.length > 300 && (
-          <p className="table-limit-note">
-            Showing the first 300 matches. Refine your search to narrow the list.
-          </p>
-        )}
-      </section>
+                    </td>
+                    <td>{display.fat}</td>
+                    <td>{display.carbs}</td>
+                    <td>{display.protein}</td>
+                    <td>{display.sodium}</td>
+                    <td>
+                      {food.custom && (
+                        <button
+                          className="icon-button danger"
+                          type="button"
+                          aria-label={`Delete ${food.name}`}
+                          onClick={() => requestCustomFoodDeletion(food)}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+          {filtered.length > 300 && (
+            <p className="table-limit-note">
+              Showing the first 300 matches. Refine your search to narrow the list.
+            </p>
+          )}
+        </section>
+      )}
+      {isMobile && (
+        <section className="food-card-list" aria-label="Food results">
+          {filtered.slice(0, 300).map((food) => (
+            <FoodCard
+              key={food.id}
+              food={food}
+              onDelete={() => requestCustomFoodDeletion(food)}
+            />
+          ))}
+          {filtered.length > 300 && (
+            <p className="table-limit-note">
+              Showing the first 300 matches. Refine your search to narrow the list.
+            </p>
+          )}
+        </section>
+      )}
 
       {showForm && (
         <FoodForm
@@ -260,6 +278,134 @@ export function FoodLibraryPage({
         </Modal>
       )}
     </div>
+  )
+}
+
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(() =>
+    typeof window === 'undefined' ? false : window.matchMedia(query).matches,
+  )
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(query)
+    const update = () => setMatches(mediaQuery.matches)
+    update()
+    mediaQuery.addEventListener('change', update)
+    return () => mediaQuery.removeEventListener('change', update)
+  }, [query])
+
+  return matches
+}
+
+function foodDisplay(food: Food) {
+  const density = densityLabel(food.caloriesPerOz ?? 0)
+  return {
+    category: food.category ?? 'Uncategorized',
+    prep: food.prep && food.prep !== 'N/A' ? food.prep : 'None',
+    prepTone: food.prep === 'hot' ? 'rose' : 'blue',
+    servingGrams: `${round(food.servingGrams ?? 0, 1)} g`,
+    servingOz: `${round(food.servingOz ?? 0, 2)} oz`,
+    calories: round(food.calories ?? 0),
+    caloriesPerOz: round(food.caloriesPerOz ?? 0),
+    densityTone: density.tone,
+    fat: `${round(food.fat ?? 0, 1)} g`,
+    carbs: `${round(food.carbs ?? 0, 1)} g`,
+    protein: `${round(food.protein ?? 0, 1)} g`,
+    sodium: `${round(food.sodium ?? 0)} mg`,
+  }
+}
+
+function FoodCard({
+  food,
+  onDelete,
+}: {
+  food: Food
+  onDelete: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const display = foodDisplay(food)
+  const detailsId = `food-card-details-${food.id}`
+
+  return (
+    <article className="food-card" aria-label={food.name}>
+      <div className="food-card-heading">
+        <div className="food-cell">
+          <strong>
+            {food.custom && <Sparkles size={13} />}
+            {food.name}
+          </strong>
+          <span>{display.category}</span>
+        </div>
+        <Badge tone={display.prepTone}>
+          {display.prep}
+        </Badge>
+      </div>
+      <dl className="food-card-metrics">
+        <div>
+          <dt>Serving</dt>
+          <dd>
+            {display.servingGrams}
+            <small>{display.servingOz}</small>
+          </dd>
+        </div>
+        <div>
+          <dt>Calories</dt>
+          <dd>{display.calories}</dd>
+        </div>
+        <div>
+          <dt>Calorie density</dt>
+          <dd>
+            <Badge tone={display.densityTone}>
+              {display.caloriesPerOz} kcal / oz
+            </Badge>
+          </dd>
+        </div>
+        <div>
+          <dt>Fat</dt>
+          <dd>{display.fat}</dd>
+        </div>
+        <div>
+          <dt>Carbohydrates</dt>
+          <dd>{display.carbs}</dd>
+        </div>
+        <div>
+          <dt>Protein</dt>
+          <dd>{display.protein}</dd>
+        </div>
+      </dl>
+      <button
+        className="food-card-disclosure"
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={detailsId}
+        aria-label={`${expanded ? 'Hide' : 'Show'} details for ${food.name}`}
+        onClick={() => setExpanded((current) => !current)}
+      >
+        Details
+        <ChevronDown
+          className={expanded ? 'rotated' : undefined}
+          size={16}
+        />
+      </button>
+      {expanded && (
+        <div className="food-card-details" id={detailsId}>
+          <div>
+            <span>Sodium</span>
+            <strong>{display.sodium}</strong>
+          </div>
+          {food.custom && (
+            <button
+              className="icon-button danger"
+              type="button"
+              aria-label={`Delete ${food.name}`}
+              onClick={onDelete}
+            >
+              <Trash2 size={15} />
+            </button>
+          )}
+        </div>
+      )}
+    </article>
   )
 }
 
