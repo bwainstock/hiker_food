@@ -141,7 +141,7 @@ export function FoodLibraryPage({
             </thead>
             <tbody>
               {filtered.slice(0, 300).map((food) => {
-                const density = densityLabel(food.caloriesPerOz ?? 0)
+                const display = foodDisplay(food)
                 return (
                   <tr key={food.id}>
                     <td>
@@ -150,32 +150,32 @@ export function FoodLibraryPage({
                           {food.custom && <Sparkles size={13} />}
                           {food.name}
                         </strong>
-                        <span>{food.category ?? 'Uncategorized'}</span>
+                        <span>{display.category}</span>
                       </div>
                     </td>
                     <td>
-                      {food.prep && food.prep !== 'N/A' ? (
-                        <Badge tone={food.prep === 'hot' ? 'rose' : 'blue'}>
-                          {food.prep}
+                      {display.prep !== 'None' ? (
+                        <Badge tone={display.prepTone}>
+                          {display.prep}
                         </Badge>
                       ) : (
                         <span className="muted">None</span>
                       )}
                     </td>
                     <td>
-                      {round(food.servingGrams ?? 0, 1)} g
-                      <small>{round(food.servingOz ?? 0, 2)} oz</small>
+                      {display.servingGrams}
+                      <small>{display.servingOz}</small>
                     </td>
-                    <td>{round(food.calories ?? 0)}</td>
+                    <td>{display.calories}</td>
                     <td>
-                      <Badge tone={density.tone}>
-                        {round(food.caloriesPerOz ?? 0)}
+                      <Badge tone={display.densityTone}>
+                        {display.caloriesPerOz}
                       </Badge>
                     </td>
-                    <td>{round(food.fat ?? 0, 1)} g</td>
-                    <td>{round(food.carbs ?? 0, 1)} g</td>
-                    <td>{round(food.protein ?? 0, 1)} g</td>
-                    <td>{round(food.sodium ?? 0)} mg</td>
+                    <td>{display.fat}</td>
+                    <td>{display.carbs}</td>
+                    <td>{display.protein}</td>
+                    <td>{display.sodium}</td>
                     <td>
                       {food.custom && (
                         <button
@@ -297,6 +297,24 @@ function useMediaQuery(query: string) {
   return matches
 }
 
+function foodDisplay(food: Food) {
+  const density = densityLabel(food.caloriesPerOz ?? 0)
+  return {
+    category: food.category ?? 'Uncategorized',
+    prep: food.prep && food.prep !== 'N/A' ? food.prep : 'None',
+    prepTone: food.prep === 'hot' ? 'rose' : 'blue',
+    servingGrams: `${round(food.servingGrams ?? 0, 1)} g`,
+    servingOz: `${round(food.servingOz ?? 0, 2)} oz`,
+    calories: round(food.calories ?? 0),
+    caloriesPerOz: round(food.caloriesPerOz ?? 0),
+    densityTone: density.tone,
+    fat: `${round(food.fat ?? 0, 1)} g`,
+    carbs: `${round(food.carbs ?? 0, 1)} g`,
+    protein: `${round(food.protein ?? 0, 1)} g`,
+    sodium: `${round(food.sodium ?? 0)} mg`,
+  }
+}
+
 function FoodCard({
   food,
   onDelete,
@@ -305,9 +323,7 @@ function FoodCard({
   onDelete: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
-  const density = densityLabel(food.caloriesPerOz ?? 0)
-  const prep =
-    food.prep && food.prep !== 'N/A' ? food.prep : 'None'
+  const display = foodDisplay(food)
   const detailsId = `food-card-details-${food.id}`
 
   return (
@@ -318,43 +334,43 @@ function FoodCard({
             {food.custom && <Sparkles size={13} />}
             {food.name}
           </strong>
-          <span>{food.category ?? 'Uncategorized'}</span>
+          <span>{display.category}</span>
         </div>
-        <Badge tone={food.prep === 'hot' ? 'rose' : 'blue'}>
-          {prep}
+        <Badge tone={display.prepTone}>
+          {display.prep}
         </Badge>
       </div>
       <dl className="food-card-metrics">
         <div>
           <dt>Serving</dt>
           <dd>
-            {round(food.servingGrams ?? 0, 1)} g
-            <small>{round(food.servingOz ?? 0, 2)} oz</small>
+            {display.servingGrams}
+            <small>{display.servingOz}</small>
           </dd>
         </div>
         <div>
           <dt>Calories</dt>
-          <dd>{round(food.calories ?? 0)}</dd>
+          <dd>{display.calories}</dd>
         </div>
         <div>
           <dt>Calorie density</dt>
           <dd>
-            <Badge tone={density.tone}>
-              {round(food.caloriesPerOz ?? 0)} kcal / oz
+            <Badge tone={display.densityTone}>
+              {display.caloriesPerOz} kcal / oz
             </Badge>
           </dd>
         </div>
         <div>
           <dt>Fat</dt>
-          <dd>{round(food.fat ?? 0, 1)} g</dd>
+          <dd>{display.fat}</dd>
         </div>
         <div>
           <dt>Carbohydrates</dt>
-          <dd>{round(food.carbs ?? 0, 1)} g</dd>
+          <dd>{display.carbs}</dd>
         </div>
         <div>
           <dt>Protein</dt>
-          <dd>{round(food.protein ?? 0, 1)} g</dd>
+          <dd>{display.protein}</dd>
         </div>
       </dl>
       <button
@@ -375,7 +391,7 @@ function FoodCard({
         <div className="food-card-details" id={detailsId}>
           <div>
             <span>Sodium</span>
-            <strong>{round(food.sodium ?? 0)} mg</strong>
+            <strong>{display.sodium}</strong>
           </div>
           {food.custom && (
             <button

@@ -184,3 +184,47 @@ test('Food results retain the desktop table above 620px', async ({ page }) => {
     page.getByRole('region', { name: 'Food results' }),
   ).toBeHidden()
 })
+
+test('long unbroken Custom Food names do not overflow at 390px', async ({
+  page,
+}) => {
+  const longNameFood = createCustomFood(
+    {
+      brand: 'Trail'.repeat(30),
+      flavor: 'Ration',
+      category: 'Entrée',
+      prep: 'N/A',
+      servingGrams: 100,
+      calories: 400,
+      fat: 10,
+      sodium: 100,
+      potassium: 100,
+      carbs: 60,
+      fiber: 5,
+      sugar: 5,
+      protein: 15,
+    },
+    'custom-long-name',
+  )
+  await page.setViewportSize({ width: 390, height: 844 })
+  await launchWithState(page, emptyState(undefined, [longNameFood]))
+  await page.getByRole('button', { name: 'Open navigation' }).click()
+  await page.getByRole('button', { name: /^Food library/ }).click()
+  await page
+    .getByRole('textbox', { name: 'Search foods' })
+    .fill(longNameFood.name)
+
+  await expect(
+    page.getByRole('article', { name: longNameFood.name }),
+  ).toBeVisible()
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true)
+  expect(
+    await page
+      .getByRole('region', { name: 'Food results' })
+      .evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true)
+})

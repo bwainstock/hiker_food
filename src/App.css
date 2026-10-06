@@ -2678,6 +2678,7 @@
 
   .food-card-heading .food-cell strong {
     font-size: 12px;
+    overflow-wrap: anywhere;
   }
 
   .food-card-metrics {
