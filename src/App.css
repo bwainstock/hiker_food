@@ -2698,6 +2698,24 @@
 }
 
 @media (max-width: 430px) {
+  .meal-item,
+  .meal-item.unresolved-item {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+  }
+
+  .meal-item .meal-item-name {
+    grid-column: 2 / -1;
+  }
+
+  .meal-item .quantity-control {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .meal-item .meal-item-actions {
+    grid-column: 3;
+  }
+
   .recipes-toolbar {
     align-items: stretch;
     flex-direction: column;
