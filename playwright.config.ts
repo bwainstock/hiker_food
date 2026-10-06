@@ -30,7 +30,7 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium-desktop',
-      testIgnore: /.*\.mobile\.spec\.ts/,
+      testIgnore: [/.*\.mobile\.spec\.ts/, /.*\.webkit\.spec\.ts/],
       use: { ...devices['Desktop Chrome'] },
     },
     {
@@ -41,14 +41,19 @@ export default defineConfig({
     {
       name: 'firefox',
       retries: 1,
-      testIgnore: /.*\.mobile\.spec\.ts/,
+      testIgnore: [/.*\.mobile\.spec\.ts/, /.*\.webkit\.spec\.ts/],
       use: { ...devices['Desktop Firefox'] },
     },
     {
       name: 'webkit',
       retries: 1,
-      testIgnore: /.*\.mobile\.spec\.ts/,
+      testIgnore: [/.*\.mobile\.spec\.ts/, /.*\.webkit\.spec\.ts/],
       use: { ...devices['Desktop Safari'] },
+    },
+    {
+      name: 'webkit-iphone',
+      testMatch: /.*\.webkit\.spec\.ts/,
+      use: { ...devices['iPhone 13'] },
     },
   ],
 })

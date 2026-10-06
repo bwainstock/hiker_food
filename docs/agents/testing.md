@@ -13,7 +13,8 @@
   desktop and one representative mobile viewport against the built Vite preview.
 - **Full browser regression**: Playwright adds data recovery, import/export,
   unresolved references, print, accessibility, keyboard, and catalog behaviors
-  in Chromium. Firefox and WebKit are diagnostic, manual-only runs.
+  in Chromium. Firefox, desktop WebKit, and representative iPhone WebKit touch
+  coverage are diagnostic, manual-only runs.
 
 ## Critical journeys
 
@@ -87,7 +88,7 @@ with waits, retries, quarantine, or weakened assertions.
 | --- | --- | --- | --- |
 | Pull request and push to `main` | `Smoke / Chromium` | Desktop Chromium + mobile Chromium viewport | Yes |
 | Pull request and push to `main` | `Full regression / Chromium` | Desktop Chromium + mobile Chromium viewport | Yes |
-| `workflow_dispatch` | `Firefox + WebKit / Manual` | Desktop Firefox + desktop WebKit | No |
+| `workflow_dispatch` | `Firefox + WebKit / Manual` | Desktop Firefox + desktop WebKit + iPhone WebKit | No |
 
 CI calls the canonical npm scripts; workflow YAML must not duplicate hidden test
 logic. Repository branch protection is configured outside this codebase.
