@@ -4,6 +4,10 @@
 
 Issues and specs are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
 
+### Triage labels
+
+Triaging issues or pull requests: read `docs/agents/triage-labels.md`.
+
 ### Domain docs
 
 Domain documentation uses a single-context layout. See `docs/agents/domain.md`.
