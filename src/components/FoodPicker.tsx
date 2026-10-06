@@ -51,6 +51,7 @@ export function FoodPicker({
               role="option"
               aria-selected="false"
               key={food.id}
+              onPointerDown={(event) => event.preventDefault()}
               onClick={() => {
                 onSelect(food)
                 setQuery('')

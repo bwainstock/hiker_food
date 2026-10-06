@@ -29,7 +29,7 @@ test('mobile Recipe planning and Shopping persistence @smoke', async ({
   await launchWithState(page, stateWithRecipe())
   const dinner = page.getByRole('article', { name: 'Dinner' })
   await dinner.getByRole('combobox').fill('Trail bowl')
-  await dinner.getByRole('option', { name: /Trail bowl.*Recipe/ }).click()
+  await dinner.getByRole('option', { name: /Trail bowl.*Recipe/ }).tap()
   await expect(page.getByRole('article', { name: 'Energy' })).toContainText(
     '250 kcal',
   )

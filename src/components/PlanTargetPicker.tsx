@@ -71,6 +71,7 @@ export function PlanTargetPicker({
                 aria-disabled={!eligibility.eligible}
                 disabled={!eligibility.eligible}
                 key={`recipe:${recipe.id}`}
+                onPointerDown={(event) => event.preventDefault()}
                 onClick={() => {
                   onSelect({ kind: 'recipe', id: recipe.id })
                   setQuery('')
@@ -102,6 +103,7 @@ export function PlanTargetPicker({
               role="option"
               aria-selected="false"
               key={`food:${food.id}`}
+              onPointerDown={(event) => event.preventDefault()}
               onClick={() => {
                 onSelect({ kind: 'food', id: food.id })
                 setQuery('')
