@@ -65,15 +65,6 @@ function App() {
     () => new Map(foods.map((food) => [food.id, food])),
     [foods],
   )
-  const recipesById = useMemo(
-    () =>
-      new Map(
-        snapshot.status === 'ready'
-          ? snapshot.state.recipes.map((recipe) => [recipe.id, recipe])
-          : [],
-      ),
-    [snapshot],
-  )
 
   if (snapshot.status === 'recovery') {
     return (
@@ -125,7 +116,6 @@ function App() {
           setState={setState}
           foods={foods}
           foodsById={foodsById}
-          recipesById={recipesById}
         />
       )}
       {route === 'shopping' && (
@@ -133,7 +123,6 @@ function App() {
           state={state}
           setState={setState}
           foods={foods}
-          foodsById={foodsById}
           onEditRecipes={() => setRoute('recipes')}
         />
       )}
@@ -156,8 +145,7 @@ function App() {
       {route === 'sodium' && (
         <SodiumCalculatorPage
           state={state}
-          foodsById={foodsById}
-          recipesById={recipesById}
+          foods={foods}
         />
       )}
       {route === 'guide' && <GuidePage />}

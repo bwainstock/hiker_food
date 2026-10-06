@@ -15,10 +15,6 @@ import {
   nutritionForFood,
   round,
 } from '../lib/nutrition'
-import {
-  nutritionForRecipeOnlyIngredient,
-  scaleNutrition,
-} from '../lib/recipe'
 import { aggregateShoppingList } from '../lib/shopping'
 import {
   removeFoodReferences,
@@ -34,31 +30,24 @@ export function ShoppingPage({
   state,
   setState,
   foods,
-  foodsById,
   onEditRecipes,
 }: {
   state: PlannerState
   setState: PlannerStateUpdater
   foods: Food[]
-  foodsById: Map<string, Food>
   onEditRecipes: () => void
 }) {
   const [packed, setPacked] = useState<Set<string>>(new Set())
   const [replacingFoodId, setReplacingFoodId] = useState<string | null>(null)
 
   const { rows, recipeOnlyRows, unresolved } = useMemo(
-    () => aggregateShoppingList(state, foodsById),
-    [state, foodsById],
+    () => aggregateShoppingList(state, foods),
+    [state, foods],
   )
 
   const total = addNutrition(
     ...rows.map(({ food, quantity }) => nutritionForFood(food, quantity)),
-    ...recipeOnlyRows.map((row) =>
-      scaleNutrition(
-        nutritionForRecipeOnlyIngredient(row.ingredient),
-        row.placementQuantity,
-      ),
-    ),
+    ...recipeOnlyRows.map((row) => row.nutrition),
   )
   const categories = new Set(rows.map(({ food }) => food.category)).size
   const totalRows = rows.length + recipeOnlyRows.length

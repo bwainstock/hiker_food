@@ -2,12 +2,8 @@ import type {
   Food,
   Nutrition,
   NutritionKnown,
-  PlanItem,
-  Recipe,
 } from '../types'
-import { resolvePlanItem } from './recipe'
-
-export { resolvePlanItem } from './recipe'
+import type { PlanItemInterpretation } from './plan-item'
 
 export const EMPTY_NUTRITION: Nutrition = {
   calories: 0,
@@ -142,31 +138,16 @@ export function addNutritionSummaries(
 }
 
 export function nutritionForItems(
-  items: PlanItem[],
-  foodsById: ReadonlyMap<string, Food>,
-  recipesById: ReadonlyMap<string, Recipe> = new Map(),
+  items: readonly PlanItemInterpretation[],
 ): Nutrition {
-  return nutritionSummaryForItems(items, foodsById, recipesById).nutrition
+  return nutritionSummaryForItems(items).nutrition
 }
 
 export function nutritionSummaryForItems(
-  items: PlanItem[],
-  foodsById: ReadonlyMap<string, Food>,
-  recipesById: ReadonlyMap<string, Recipe> = new Map(),
+  items: readonly PlanItemInterpretation[],
 ): NutritionSummary {
   return addNutritionSummaries(
-    ...items.map((item) => {
-      const resolved = resolvePlanItem(item, foodsById, recipesById)
-      return resolved
-        ? {
-            nutrition: resolved.nutrition,
-            known: resolved.known,
-          }
-        : {
-            nutrition: { ...EMPTY_NUTRITION },
-            known: { ...NO_NUTRITION_KNOWN },
-          }
-    }),
+    ...items.map(({ nutrition, known }) => ({ nutrition, known })),
   )
 }
 
