@@ -12,3 +12,8 @@ Domain documentation uses a single-context layout. See `docs/agents/domain.md`.
 
 Testing changes, behavior changes, bug fixes, or verification work: read
 `docs/agents/testing.md` for the required journeys, commands, and change policy.
+
+### Git publishing
+
+Publishing branches, opening pull requests, or merging to `main`: read
+`docs/agents/git-workflow.md`.

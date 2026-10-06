@@ -91,7 +91,8 @@ with waits, retries, quarantine, or weakened assertions.
 | `workflow_dispatch` | `Firefox + WebKit / Manual` | Desktop Firefox + desktop WebKit + iPhone WebKit | No |
 
 CI calls the canonical npm scripts; workflow YAML must not duplicate hidden test
-logic. Repository branch protection is configured outside this codebase.
+logic. For the protected-branch publishing sequence, see
+`docs/agents/git-workflow.md`.
 
 ## Ongoing change policy
 
